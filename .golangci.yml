@@ -1,0 +1,74 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gofmt
+    - goimports
+    - gosec
+    - unused
+    - misspell
+    - revive
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/kubecat/kubecat
+
+  errcheck:
+    # Exempt standard patterns where errors are either impossible or unactionable.
+    # defer rows.Close() / resp.Body.Close() are idiomatic Go; callers
+    # cannot usefully handle the error in these deferred positions.
+    # strings.Builder.Write* always return nil errors per Go spec.
+    exclude-functions:
+      - (io.Closer).Close
+      - (io.ReadCloser).Close
+      - (*strings.Builder).WriteString
+      - (*strings.Builder).WriteByte
+      - (*strings.Builder).WriteRune
+      - (*strings.Builder).Write
+
+  gosec:
+    excludes:
+      # G304: File path provided as taint input — intentional for kubeconfig loading
+      - G304
+
+  revive:
+    rules:
+      - name: exported
+      - name: var-naming
+      - name: package-comments
+      - name: error-return
+      # error-strings disabled: error messages are user-visible UI strings that
+      # intentionally start with capital letters and end with periods.
+      # - name: error-strings
+      - name: blank-imports
+
+  misspell:
+    locale: US
+
+issues:
+  exclude-rules:
+    # Suppress revive stutter warnings — exported names intentionally repeat
+    # the package name for clarity (e.g. diff.DiffResult, config.ConfigDir).
+    - linters: [revive]
+      text: "stutters"
+
+    # Exclude unused and revive from generated Wails JS bindings
+    - path: frontend/wailsjs/
+      linters:
+        - unused
+        - revive
+
+    # Exclude unused and revive from generated code in general
+    - path: ".*_gen\\.go"
+      linters:
+        - unused
+        - revive
+
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -1,0 +1,398 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+      sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    /* Base Colors - Creme/Sepia Light Theme (Warm, Monotonic) */
+    --bg-main: 250 250 249; /* stone-50 */
+    --bg-surface: 255 255 255;
+    --bg-card: 255 255 255;
+    --bg-sidebar: 245 245 244; /* stone-100 */
+
+    --text-primary: 28 25 23; /* stone-900 */
+    --text-secondary: 87 83 78; /* stone-500/600 */
+    --border-main: 231 229 228; /* stone-200 */
+
+    /* Default Theme: Rain (Blue) */
+    --accent-400: 34 211 238; /* cyan-400 */
+    --accent-500: 6 182 212; /* cyan-500 */
+    --accent-600: 8 145 178; /* cyan-600 */
+
+    /* Selection */
+    --color-selection: var(--accent-500);
+
+    /* Iridescent Animation Colors - Default (Rain/Blue) */
+    --iri-1: #38bdf8; /* sky-400 */
+    --iri-2: #818cf8; /* indigo-400 */
+    --iri-3: #22d3ee; /* cyan-400 */
+    --iri-4: #c084fc; /* purple-400 */
+  }
+
+  .dark {
+    --bg-main: 15 23 42; /* slate-900 */
+    --bg-surface: 30 41 59; /* slate-800 */
+    --bg-card: 30 41 59;
+    --bg-sidebar: 15 23 42; /* slate-900 */
+
+    --text-primary: 248 250 252; /* slate-50 */
+    --text-secondary: 148 163 184; /* slate-400 */
+    --border-main: 51 65 85; /* slate-700 */
+  }
+
+  /* Dark Mode Overrides (Matching previous "slate" look mainly, plus nexus darks) */
+  .dark {
+    /* Re-mapping to the dark palette we saw in App.tsx (slate-900, slate-800 etc) 
+       Wait, App.tsx uses slate-900 hardcoded.
+       We mapped 'nexus-900' to a variable.
+       We should ensure existing 'bg-slate-900' usage still works or we refactor App.tsx to use 'bg-nexus-900' or similar.
+       However, the user asked for "Light/Dark" support. 
+       This means <div class="bg-slate-900"> needs to become <div class="bg-white dark:bg-slate-900"> OR
+       we redefine what 'bg-nexus-900' means.
+       
+       Let's stick to the CSS variable approach for the PRIMARY interface colors if we can,
+       BUT refactoring the entire App.tsx to remove 'bg-slate-900' classes is a big task.
+       
+       ALLOW 'next-themes' to handle the 'dark' class.
+       Existing code uses 'bg-slate-900'. In Light mode, 'bg-slate-900' is still dark.
+       So we MUST update App.tsx to use 'bg-slate-100 dark:bg-slate-900'.
+       
+       For this step, I will define the VARIABLES for the ACCENTS and SELECTION.
+    */
+  }
+
+  /* Theme: Rain (Blue) */
+  [data-theme="rain"] {
+    --accent-400: 34 211 238; /* cyan-400 */
+    --accent-500: 6 182 212; /* cyan-500 */
+    --accent-600: 8 145 178; /* cyan-600 */
+
+    --iri-1: #38bdf8; /* sky-400 */
+    --iri-2: #818cf8; /* indigo-400 */
+    --iri-3: #22d3ee; /* cyan-400 */
+    --iri-4: #c084fc; /* purple-400 */
+  }
+
+  /* Theme: Purple */
+  [data-theme="purple"] {
+    --accent-400: 192 132 252; /* purple-400 */
+    --accent-500: 168 85 247; /* purple-500 */
+    --accent-600: 147 51 234; /* purple-600 */
+
+    --iri-1: #c084fc; /* purple-400 */
+    --iri-2: #f472b6; /* pink-400 */
+    --iri-3: #a78bfa; /* violet-400 */
+    --iri-4: #818cf8; /* indigo-400 */
+  }
+
+  /* Theme: Green */
+  [data-theme="green"] {
+    --accent-400: 74 222 128; /* green-400 */
+    --accent-500: 34 197 94; /* green-500 */
+    --accent-600: 22 163 74; /* green-600 */
+
+    --iri-1: #4ade80; /* green-400 */
+    --iri-2: #2dd4bf; /* teal-400 */
+    --iri-3: #a3e635; /* lime-400 */
+    --iri-4: #34d399; /* emerald-400 */
+  }
+
+  /* Theme: Orange */
+  [data-theme="orange"] {
+    --accent-400: 251 146 60; /* orange-400 */
+    --accent-500: 249 115 22; /* orange-500 */
+    --accent-600: 234 88 12; /* orange-600 */
+
+    --iri-1: #fb923c; /* orange-400 */
+    --iri-2: #facc15; /* yellow-400 */
+    --iri-3: #f87171; /* red-400 */
+    --iri-4: #fbbf24; /* amber-400 */
+  }
+
+  /* Theme: Rose */
+  [data-theme="rose"] {
+    --accent-400: 251 113 133; /* rose-400 */
+    --accent-500: 244 63 94; /* rose-500 */
+    --accent-600: 225 29 72; /* rose-600 */
+
+    --iri-1: #fb7185; /* rose-400 */
+    --iri-2: #f472b6; /* pink-400 */
+    --iri-3: #f87171; /* red-400 */
+    --iri-4: #e879f9; /* fuchsia-400 */
+  }
+
+  /* Theme: Amber */
+  [data-theme="amber"] {
+    --accent-400: 251 191 36; /* amber-400 */
+    --accent-500: 245 158 11; /* amber-500 */
+    --accent-600: 217 119 6; /* amber-600 */
+
+    --iri-1: #fbbf24; /* amber-400 */
+    --iri-2: #fb923c; /* orange-400 */
+    --iri-3: #facc15; /* yellow-400 */
+    --iri-4: #fcd34d; /* amber-300 */
+  }
+
+  /* Theme: Nord */
+  [data-theme="nord"] {
+    --accent-400: 136 192 208; /* nord8 #88c0d0 */
+    --accent-500: 129 161 193; /* nord9 #81a1c1 */
+    --accent-600: 94 129 172;  /* nord10 #5e81ac */
+
+    --iri-1: #88c0d0;
+    --iri-2: #81a1c1;
+    --iri-3: #8fbcbb;
+    --iri-4: #5e81ac;
+  }
+
+  /* Theme: Catppuccin (Mocha) */
+  [data-theme="catppuccin"] {
+    --accent-400: 203 166 247; /* mauve #cba6f7 */
+    --accent-500: 180 190 254; /* lavender #b4befe */
+    --accent-600: 137 180 250; /* blue #89b4fa */
+
+    --iri-1: #cba6f7;
+    --iri-2: #f5c2e7;
+    --iri-3: #89dceb;
+    --iri-4: #a6e3a1;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  @apply bg-stone-50 text-stone-900 transition-colors duration-200;
+}
+
+/* Dark mode body default */
+.dark body {
+  @apply bg-slate-900 text-slate-100;
+}
+
+/* Apply dynamic selection color */
+::selection {
+  background-color: rgb(var(--color-selection) / 0.3);
+  color: inherit;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-stone-200 dark:bg-slate-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-stone-400 dark:bg-slate-600 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-stone-500 dark:bg-slate-500;
+}
+
+/* Log viewer styling */
+.log-line {
+  @apply font-mono text-sm leading-6;
+}
+
+.log-line:hover {
+  @apply bg-slate-200/50 dark:bg-slate-800/50;
+}
+
+/* Keyboard shortcuts */
+kbd {
+  @apply px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs font-mono;
+}
+
+/* macOS titlebar drag region */
+.titlebar-drag {
+  --wails-draggable: drag;
+}
+
+.titlebar-no-drag {
+  --wails-draggable: no-drag;
+}
+
+/* Iridescent Background Styling */
+.iridescent-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.15;
+  filter: blur(100px);
+}
+
+.dark .iridescent-bg {
+  opacity: 0.1;
+}
+
+@keyframes iridescent {
+  0% {
+    transform: translate(0%, 0%) rotate(0deg);
+  }
+  33% {
+    transform: translate(10%, 10%) rotate(120deg);
+  }
+  66% {
+    transform: translate(-10%, 5%) rotate(240deg);
+  }
+  100% {
+    transform: translate(0%, 0%) rotate(360deg);
+  }
+}
+
+.iri-blob {
+  position: absolute;
+  width: 80vw;
+  height: 80vh;
+  background: radial-gradient(circle, var(--iri-1), transparent 60%);
+  animation: iridescent 40s infinite linear;
+}
+
+.iri-blob-2 {
+  position: absolute;
+  top: -20vh;
+  right: -20vw;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle, var(--iri-2), transparent 60%);
+  animation: iridescent 50s infinite linear reverse;
+}
+
+.iri-blob-3 {
+  position: absolute;
+  bottom: -40vh;
+  left: -10vw;
+  width: 90vw;
+  height: 90vh;
+  background: radial-gradient(circle, var(--iri-3), transparent 60%);
+  animation: iridescent 45s infinite linear;
+}
+
+.iri-blob-4 {
+  position: absolute;
+  bottom: 10vh;
+  right: 10vw;
+  width: 60vw;
+  height: 60vh;
+  background: radial-gradient(circle, var(--iri-4), transparent 60%);
+  animation: iridescent 55s infinite linear reverse;
+}
+
+/* Contour Background overlay */
+.contour-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.4;
+  background-image: url("data:image/svg+xml,%3Csvg width='100%25' height='100%25' viewBox='0 0 100 100' preserveAspectRatio='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 100 C 20 0 50 0 100 100 Z' fill='none' stroke='%23a8a29e' stroke-width='0.1' opacity='0.5'/%3E%3Cpath d='M0 100 C 30 20 60 20 100 100 Z' fill='none' stroke='%23a8a29e' stroke-width='0.1' opacity='0.5'/%3E%3Cpath d='M0 100 C 40 40 70 40 100 100 Z' fill='none' stroke='%23a8a29e' stroke-width='0.1' opacity='0.5'/%3E%3Cpath d='M0 0 C 30 80 70 80 100 0 Z' fill='none' stroke='%23a8a29e' stroke-width='0.1' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: 200% 200%;
+}
+
+.dark .contour-bg {
+  opacity: 0.15;
+  background-image: url("data:image/svg+xml,%3Csvg width='100%25' height='100%25' viewBox='0 0 100 100' preserveAspectRatio='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 100 C 20 0 50 0 100 100 Z' fill='none' stroke='%2394a3b8' stroke-width='0.1' opacity='0.5'/%3E%3Cpath d='M0 100 C 30 20 60 20 100 100 Z' fill='none' stroke='%2394a3b8' stroke-width='0.1' opacity='0.5'/%3E%3Cpath d='M0 100 C 40 40 70 40 100 100 Z' fill='none' stroke='%2394a3b8' stroke-width='0.1' opacity='0.5'/%3E%3Cpath d='M0 0 C 30 80 70 80 100 0 Z' fill='none' stroke='%2394a3b8' stroke-width='0.1' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* Glass Window Effect */
+.window-glass {
+  @apply bg-white/25 dark:bg-slate-800/40 backdrop-blur-sm border border-stone-200 dark:border-slate-700;
+}
+
+/* Navbar / Sidebar accent glow utilities */
+.nav-accent-glow {
+  box-shadow: 0 0 8px rgb(var(--accent-500) / 0.5);
+}
+
+/* Sidebar nav item active shimmer */
+.nav-item-active {
+  background: linear-gradient(
+    135deg,
+    rgb(var(--accent-500) / 0.12) 0%,
+    rgb(var(--accent-400) / 0.06) 100%
+  );
+}
+
+/* Cluster status pill glow (connected state) */
+.status-glow-connected {
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.2), 0 0 4px rgba(52, 211, 153, 0.3);
+}
+
+/* Subtle inset top border for header panels */
+.panel-top-accent::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--accent-500) / 0.5),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* AI Executive Summary Styling */
+.ai-summary {
+  @apply rounded-xl overflow-hidden bg-white/50 dark:bg-slate-900/50 border border-stone-200 dark:border-slate-700;
+}
+
+.ai-summary h3 {
+  @apply text-lg font-semibold mt-4 mb-2 text-stone-900 dark:text-slate-100 first:mt-0;
+}
+
+.ai-summary ul {
+  @apply list-disc list-outside ml-5 space-y-1 text-stone-600 dark:text-slate-300;
+}
+
+.ai-summary p {
+  @apply mb-3 leading-relaxed text-stone-600 dark:text-slate-300;
+}
+
+.ai-summary strong {
+  @apply font-semibold text-stone-900 dark:text-slate-100;
+}
+
+.ai-summary pre {
+  @apply mt-2 mb-4 p-3 bg-stone-100 dark:bg-slate-950 rounded-md overflow-x-auto text-xs font-mono border border-stone-200 dark:border-slate-800 text-stone-700 dark:text-slate-300;
+}
+
+.ai-summary code {
+  @apply font-mono text-xs bg-stone-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-purple-600 dark:text-purple-400;
+}
+
+.summary-header {
+  @apply p-4 bg-stone-100/50 dark:bg-slate-800/50 border-b border-stone-200 dark:border-slate-700;
+}
+
+.key-findings {
+  @apply p-4 border-b border-stone-200 dark:border-slate-700;
+}
+
+.recommendations {
+  @apply p-4;
+}
+
+.recommendation-item {
+  @apply flex gap-3 p-3 rounded-lg bg-stone-100/50 dark:bg-slate-900/50 text-sm border border-stone-200 dark:border-slate-700 mb-2 last:mb-0;
+}
+
+.finding-item {
+  @apply flex gap-2 items-start mb-2 last:mb-0 text-sm text-stone-700 dark:text-slate-300;
+}

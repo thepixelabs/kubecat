@@ -1,0 +1,94 @@
+# Binaries
+/build/bin/
+/kubecat
+/kubecat.exe
+/kubecat.app
+/frontend/node_modules/
+/frontend/dist/
+/frontend/package.json.md5
+/scripts/testdata-generator/build/
+.tools/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Air hot reload
+tmp/
+
+# Debug files
+debug
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Config files (user-specific)
+config.yaml
+config.local.yaml
+
+# Semantic Release
+.generated-go-semantic-release-changelog.md
+.semrel/
+
+# Vite
+frontend/.vite/
+
+# TLS/PKI credentials — never commit private keys or certs
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Kubernetes credentials
+kubeconfig
+*.kubeconfig
+.kube/
+
+# Service account and cloud credentials
+service-account*.json
+*-credentials.json
+
+# Compiled test binary (go test -c output in repo root)
+kubecat_test
+
+# Temp files
+*.tmp
+
+# Scratch images in repository root (AI-generated, not part of app assets)
+# App images live in build/, frontend/public/, and docs/assets/
+/Gemini_Generated_Image_*.png
+/Screenshot*.png
+
+# Internal dev tooling artifacts — never commit
+.tasks/
+.cursor/
+.mcp.json
+.claude/settings.local.json
+.git-rebase-todo
+.rebase-plan.txt
+vedox-extracted/
+frontend/coverage/

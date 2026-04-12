@@ -1,0 +1,257 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.9"
+          cache: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          brew install create-dmg jq
+
+      - name: Cache Wails CLI
+        id: cache-wails
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/go/bin/wails
+          key: ${{ runner.os }}-wails-v2.11.0
+
+      - name: Install Wails
+        if: steps.cache-wails.outputs.cache-hit != 'true'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+
+      - name: Add Go Bin to Path
+        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Semantic Release
+        # Pin to v1.24.1 — resolve the commit SHA with: gh api repos/go-semantic-release/action/git/ref/tags/v1.24.1
+        uses: go-semantic-release/action@v1.24.1
+        id: semrel
+        with:
+          changelog-generator-opt: "emojis=true"
+          allow-initial-development-versions: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Sync Git State
+        if: steps.semrel.outputs.version != ''
+        run: |
+          git fetch --tags --force
+          git checkout v${{ steps.semrel.outputs.version }}
+
+      - name: Build Wails App and Create macOS Artifacts
+        if: steps.semrel.outputs.version != ''
+        env:
+          # Code signing secrets — set these in repo Settings > Secrets and variables > Actions.
+          # Leave unset to use ad-hoc signing (blocked on macOS 15+ Gatekeeper).
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # Notarization secrets (API key method — same as dispatch)
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          set -euxo pipefail
+          TAG="v${{ steps.semrel.outputs.version }}"
+          echo "Building for tag: $TAG"
+
+          # Ensure we never upload stale artifacts from previous runs
+          rm -rf dist
+          mkdir -p dist
+
+          # Build Wails app
+          wails build -s -platform darwin/universal -ldflags "-X github.com/thepixelabs/kubecat/internal/version.Version=$TAG -X github.com/thepixelabs/kubecat/internal/version.GitCommit=${{ github.sha }} -X github.com/thepixelabs/kubecat/internal/version.BuildDate=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" -o kubecat
+
+          # Code signing: use Developer ID certificate if available, otherwise fall back to ad-hoc.
+          # Ad-hoc signing (-s -) blocks Gatekeeper on macOS 15+; proper signing requires:
+          #   APPLE_CERTIFICATE_P12   — base64-encoded Developer ID Application .p12
+          #   APPLE_CERTIFICATE_PASSWORD — .p12 export password
+          #   APPLE_SIGNING_IDENTITY  — "Developer ID Application: Your Name (TEAMID)"
+          if [ -n "$APPLE_CERTIFICATE_P12" ]; then
+            echo "Importing Developer ID certificate..."
+            KEYCHAIN_PATH=$(mktemp -d)/build.keychain
+            KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+            security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+            security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+            echo "$APPLE_CERTIFICATE_P12" | base64 --decode > /tmp/certificate.p12
+            security import /tmp/certificate.p12 -k "$KEYCHAIN_PATH" \
+              -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+            security list-keychain -d user -s "$KEYCHAIN_PATH"
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+            rm -f /tmp/certificate.p12
+
+            echo "Signing with Developer ID: $APPLE_SIGNING_IDENTITY"
+            codesign --force --deep --options=runtime \
+              --entitlements build/darwin/entitlements.plist \
+              -s "$APPLE_SIGNING_IDENTITY" build/bin/kubecat.app
+          else
+            echo "APPLE_CERTIFICATE_P12 not set — falling back to ad-hoc signing (blocked on macOS 15+)"
+            codesign --force --deep -s - build/bin/kubecat.app
+          fi
+
+          # Create DMG and ZIP
+          cd build/bin
+
+          DMG_NAME="kubecat_${TAG}_macOS_universal.dmg"
+          ZIP_NAME="kubecat_${TAG}_macOS_universal.zip"
+
+          echo "Creating DMG: $DMG_NAME"
+          create-dmg \
+            --volname "Kubecat" \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --app-drop-link 450 200 \
+            --icon "kubecat.app" 150 200 \
+            "$DMG_NAME" \
+            "kubecat.app"
+
+          echo "Creating ZIP: $ZIP_NAME"
+          zip -r "$ZIP_NAME" "kubecat.app"
+
+          # Move to repo-root dist/ for the upload step
+          mv "$DMG_NAME" ../../dist/
+          mv "$ZIP_NAME" ../../dist/
+
+          # Notarize the DMG if Apple API key credentials are available
+          # Requires: APPLE_API_KEY_ID, APPLE_API_ISSUER_ID, APPLE_API_KEY_P8
+          if [ -n "$APPLE_API_KEY_ID" ]; then
+            echo "Notarizing $DMG_NAME..."
+            xcrun notarytool submit "../../dist/$DMG_NAME" \
+              --key-id "$APPLE_API_KEY_ID" \
+              --issuer "$APPLE_API_ISSUER_ID" \
+              --key <(echo "$APPLE_API_KEY_P8") \
+              --wait
+            echo "Stapling notarization ticket to DMG..."
+            xcrun stapler staple "../../dist/$DMG_NAME"
+          else
+            echo "APPLE_API_KEY_ID not set — skipping notarization"
+          fi
+
+          echo "Artifacts in dist/:"
+          ls -la ../../dist/
+
+      - name: Create Release and Upload Artifacts
+        if: steps.semrel.outputs.version != ''
+        run: |
+          TAG="v${{ steps.semrel.outputs.version }}"
+          echo "Creating draft release and uploading artifacts for $TAG"
+
+          # Create as draft first — prevents an empty public release if artifact upload fails
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Creating draft release $TAG"
+            gh release create "$TAG" --title "$TAG" --generate-notes --draft
+          else
+            echo "Release $TAG already exists, ensuring it is still a draft before upload"
+            gh release edit "$TAG" --draft=true
+          fi
+
+          # Upload artifacts — only one upload call, with --clobber for idempotency on reruns
+          gh release upload "$TAG" dist/*.dmg dist/*.zip --clobber
+
+          # Publish the release now that all artifacts are present
+          gh release edit "$TAG" --draft=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Update Homebrew Cask
+        if: steps.semrel.outputs.version != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          VERSION="${{ steps.semrel.outputs.version }}"
+          TAG="v$VERSION"
+          DMG_NAME="kubecat_${TAG}_macOS_universal.dmg"
+          DMG_PATH="dist/$DMG_NAME"
+
+          echo "Calculating SHA256 for $DMG_PATH"
+          SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
+          echo "SHA256: $SHA256"
+
+          # Configure Git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Clone Homebrew Tap
+          # set +x prevents the token-bearing URL from appearing in the runner log
+          set +x
+          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/thepixelabs/homebrew-tap.git homebrew-tap
+          set -x
+          echo "Cloning homebrew-tap..."
+
+          cd homebrew-tap/Casks
+
+          # Update kubecat.rb — use perl for portable in-place editing (BSD sed requires '' suffix,
+          # GNU sed does not; perl -pi -e is identical on both macOS and Linux runners)
+          NEW_URL="https://github.com/thepixelabs/kubecat/releases/download/${TAG}/${DMG_NAME}"
+          perl -pi -e "s|version \".*\"|version \"$VERSION\"|" kubecat.rb
+          perl -pi -e "s|sha256 \".*\"|sha256 \"$SHA256\"|" kubecat.rb
+          perl -pi -e "s|url \".*\"|url \"$NEW_URL\"|" kubecat.rb
+
+          echo "Updated kubecat.rb content:"
+          cat kubecat.rb
+
+          # Commit and Push
+          git add kubecat.rb
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update kubecat to $VERSION"
+            git push origin main
+            echo "Pushed changes to homebrew-tap"
+          fi
+
+      - name: Create Homebrew Release and Upload Artifacts
+        if: steps.semrel.outputs.version != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          VERSION="${{ steps.semrel.outputs.version }}"
+          TAG="v$VERSION"
+          REPO="thepixelabs/homebrew-tap"
+
+          echo "Handling release for $REPO"
+          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+             echo "Creating release $TAG in $REPO"
+             # This will tag the latest commit on main, which should be the Cask update
+             gh release create "$TAG" --repo "$REPO" --target main --title "$TAG" --notes "Release $TAG of Kubecat"
+          else
+             echo "Release $TAG already exists in $REPO"
+          fi
+
+          # Upload artifacts to homebrew repo
+          gh release upload "$TAG" --repo "$REPO" dist/*.dmg dist/*.zip --clobber

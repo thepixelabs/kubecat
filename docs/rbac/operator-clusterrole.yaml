@@ -1,0 +1,141 @@
+---
+# operator-clusterrole.yaml
+#
+# RBAC permissions for Kubecat with write operations enabled.
+# Extends the viewer role with the ability to:
+#   - Delete resources (Resource Explorer delete action)
+#   - Create/update/patch resources (Apply YAML feature)
+#   - Open port-forwards (Port Forward feature — requires pods/portforward subresource)
+#   - Exec into pods (Pod Terminal feature — requires pods/exec subresource)
+#   - Read Secret values (Secret Viewer feature — requires get on secrets)
+#   - Trigger GitOps syncs (ArgoCD Application patch)
+#
+# CAUTION: Bind this role only to clusters where you explicitly want
+# Kubecat to mutate cluster state. For production clusters in read-only
+# mode, use viewer-clusterrole.yaml and set readOnly: true in config.
+#
+# Usage:
+#   kubectl apply -f operator-clusterrole.yaml
+#   kubectl create clusterrolebinding kubecat-operator \
+#     --clusterrole=kubecat-operator \
+#     --serviceaccount=<namespace>:<service-account>
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubecat-operator
+  labels:
+    app.kubernetes.io/name: kubecat
+    app.kubernetes.io/component: rbac
+rules:
+  # Core workload resources — full CRUD
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - replicationcontrollers
+      - services
+      - endpoints
+      - namespaces
+      - persistentvolumeclaims
+      - configmaps
+      - events
+      - serviceaccounts
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Pod subresources — required for exec (Pod Terminal) and port-forward
+  - apiGroups: [""]
+    resources:
+      - pods/exec
+      - pods/portforward
+    verbs: ["create"]
+
+  # Secrets — get is required for the Secret Viewer feature (GetSecretData),
+  # which decodes and displays secret values on explicit user request.
+  # If you do not want Kubecat to read secret values, remove "get" below
+  # and use viewer-clusterrole.yaml instead.
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: ["list", "get"]
+
+  # Nodes and persistent volumes — read-only (node management is not a Kubecat concern)
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - persistentvolumes
+    verbs: ["get", "list", "watch"]
+
+  # Apps resources
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
+
+  # Batch resources
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Networking
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Storage
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs: ["get", "list", "watch"]
+
+  # RBAC introspection — read-only (Kubecat does not manage RBAC resources)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - clusterroles
+      - clusterrolebindings
+      - roles
+      - rolebindings
+    verbs: ["get", "list"]
+
+  # Policy engines — read-only
+  - apiGroups: ["constraints.gatekeeper.sh"]
+    resources: ["*"]
+    verbs: ["get", "list"]
+
+  - apiGroups: ["kyverno.io"]
+    resources:
+      - clusterpolicies
+      - policies
+    verbs: ["get", "list"]
+
+  # GitOps — ArgoCD (patch required to trigger Application syncs)
+  - apiGroups: ["argoproj.io"]
+    resources:
+      - applications
+      - applicationsets
+    verbs: ["get", "list", "watch", "patch"]
+
+  # GitOps — Flux (read-only; Flux manages its own reconciliation)
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources:
+      - kustomizations
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources:
+      - helmreleases
+    verbs: ["get", "list", "watch"]
+
+  # Metrics
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - nodes
+      - pods
+    verbs: ["get", "list"]

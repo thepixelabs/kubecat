@@ -1,0 +1,23 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "kubecat",
+  "outputfilename": "kubecat",
+  "frontend:install": "npm ci",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "info": {
+    "productName": "Kubecat",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2025 Kubecat Team",
+    "comments": "Kubernetes command center powered by AI",
+    "companyName": "Kubecat Team"
+  },
+  "author": {
+    "name": "Kubecat Team",
+    "email": "team@kubecat.io"
+  },
+  "nsisType": "multiple",
+  "obfuscated": false,
+  "garbleArgs": ""
+}

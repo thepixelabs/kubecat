@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hardened Runtime entitlements for Kubecat -->
+
+    <!-- Required for the JavaScript engine embedded in WebKit (WKWebView) -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- Required for WKWebView to execute unsigned JS -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+
+    <!-- Required to send Apple Events for shell integration (kubectl, etc.) -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+
+    <!-- Required for connecting to Kubernetes API servers and AI providers -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

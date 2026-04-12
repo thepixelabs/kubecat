@@ -1,0 +1,93 @@
+---
+# namespace-scoped-role.yaml
+#
+# Namespace-scoped Role for environments where ClusterRole binding is
+# not permitted. Grants Kubecat read access within a single namespace.
+#
+# Limitations compared to cluster-scoped roles:
+#   - No node metrics or cluster-wide resource counts
+#   - No cluster-wide RBAC analysis or security scanning
+#   - Cluster Visualizer shows only resources within this namespace
+#   - No access to ClusterRoles, ClusterRoleBindings, or PersistentVolumes
+#
+# For the operator variant (delete/exec/port-forward within namespace),
+# add verbs and subresource rules from operator-clusterrole.yaml.
+#
+# Usage:
+#   kubectl apply -f namespace-scoped-role.yaml -n <your-namespace>
+#   kubectl create rolebinding kubecat-viewer-<namespace> \
+#     --role=kubecat-namespace-viewer \
+#     --serviceaccount=<namespace>:<service-account> \
+#     --namespace=<your-namespace>
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubecat-namespace-viewer
+  # Uncomment and set to the target namespace if applying via `kubectl apply`.
+  # When using `kubectl apply -n <namespace>`, this field is set automatically.
+  # namespace: my-team-namespace
+  labels:
+    app.kubernetes.io/name: kubecat
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - configmaps
+      - events
+      - serviceaccounts
+      - persistentvolumeclaims
+    verbs: ["get", "list", "watch"]
+
+  # Secret metadata only (names and labels — not values)
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: ["list"]
+
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: ["get", "list", "watch"]
+
+  # Namespace-scoped RBAC introspection only
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - roles
+      - rolebindings
+    verbs: ["get", "list"]
+
+  # GitOps — namespace-scoped resources only
+  - apiGroups: ["argoproj.io"]
+    resources:
+      - applications
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources:
+      - kustomizations
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources:
+      - helmreleases
+    verbs: ["get", "list", "watch"]

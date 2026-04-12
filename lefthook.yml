@@ -1,0 +1,34 @@
+pre-commit:
+  parallel: false
+  commands:
+    gofmt:
+      glob: "*.go"
+      run: |
+        FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' | xargs)
+        if [ -n "$FILES" ]; then
+          gofmt -l $FILES
+          UNFMT=$(gofmt -l $FILES)
+          if [ -n "$UNFMT" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$UNFMT"
+            exit 1
+          fi
+        fi
+
+    golangci-lint:
+      glob: "*.go"
+      run: |
+        FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' | xargs)
+        if [ -n "$FILES" ]; then
+          golangci-lint run --fast $FILES
+        fi
+
+pre-push:
+  parallel: false
+  commands:
+    go-test-race:
+      run: go test -race ./...
+
+    vitest:
+      run: |
+        cd frontend && npm run test

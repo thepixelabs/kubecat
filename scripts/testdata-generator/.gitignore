@@ -1,0 +1,15 @@
+# Build artifacts
+build/
+testdata-generator
+*.exe
+
+# Go workspace
+go.work
+go.work.sum
+
+# IDE
+.vscode/
+.idea/
+
+
+
