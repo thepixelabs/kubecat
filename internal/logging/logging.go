@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package logging configures structured logging for Kubecat using log/slog.
 //
 // Logs are written to a rotating file at ~/.local/state/kubecat/kubecat.log.

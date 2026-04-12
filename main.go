@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package main is the entry point for the Kubecat GUI application.
 package main
 

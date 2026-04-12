@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package metadata provides helpers for extracting and formatting structured
 // metadata from raw Kubernetes resource JSON.
 package metadata

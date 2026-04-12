@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package telemetry provides opt-in anonymous usage telemetry.
 // All data is buffered in memory and flushed periodically.
 // No data leaves the process unless the user explicitly enables telemetry.

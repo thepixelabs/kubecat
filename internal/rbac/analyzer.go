@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package rbac provides read-only RBAC analysis for Kubernetes namespaces.
 package rbac
 

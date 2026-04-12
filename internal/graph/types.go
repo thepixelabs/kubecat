@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package graph computes the resource relationship graph used by the cluster
 // visualizer.
 package graph

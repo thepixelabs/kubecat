@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package mcp implements a Model Context Protocol server over stdio.
 // The server exposes kubecat's cluster context to MCP clients such as
 // Claude Desktop via JSON-RPC 2.0.

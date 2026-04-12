@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package history provides time-travel debugging capabilities.
 package history
 

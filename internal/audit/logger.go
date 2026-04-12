@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package audit provides structured JSON audit logging for security-sensitive
 // operations. Logs are written to ~/.local/state/kubecat/audit.log with
 // automatic 50 MiB rotation and a 90-day retention purge at startup.

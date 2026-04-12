@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package mcp
 
 // ToolDefinition is a single MCP tool descriptor.

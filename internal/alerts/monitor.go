@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package alerts monitors clusters for anomalous conditions and emits
 // proactive AI query suggestions to the frontend.
 package alerts

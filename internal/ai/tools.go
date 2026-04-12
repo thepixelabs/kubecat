@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package ai
 
 // ApprovalPolicy controls whether a tool call requires user confirmation.
