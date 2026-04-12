@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package cost provides resource cost estimation for Kubernetes workloads.
 // It integrates with OpenCost/Kubecost when available and falls back to
 // resource-request × node-pricing heuristics.

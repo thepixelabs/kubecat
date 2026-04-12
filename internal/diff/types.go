@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package diff provides utilities for computing and reporting differences
 // between Kubernetes resource snapshots.
 package diff

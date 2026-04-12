@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package analyzer provides a pluggable framework for analyzing Kubernetes resources.
 package analyzer
 

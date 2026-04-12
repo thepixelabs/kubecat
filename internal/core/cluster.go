@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package core provides shared business logic for both TUI and GUI frontends.
 // This package is designed to be UI-agnostic and can be used by any frontend.
 package core

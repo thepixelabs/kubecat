@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package ai provides AI integration for natural language queries.
 package ai
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package client provides multi-cluster Kubernetes client management.
 package client
 

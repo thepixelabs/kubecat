@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package updater checks GitHub Releases for newer versions of Kubecat and
 // emits a Wails event when one is found.
 package updater

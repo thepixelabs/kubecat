@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package network provides centralized SSRF protection for outbound HTTP
 // requests made by Kubecat.  All outbound AI provider calls must pass through
 // Validate before the request is dispatched.

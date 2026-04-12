@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package storage provides persistent storage for Kubecat using SQLite.
 package storage
 

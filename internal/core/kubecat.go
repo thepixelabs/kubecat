@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package core provides the shared business logic layer for Kubecat.
 // This package is UI-agnostic and can be used by both TUI and GUI frontends.
 package core

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package health provides cluster connectivity monitoring with automatic
 // reconnection and Wails event emission.
 package health

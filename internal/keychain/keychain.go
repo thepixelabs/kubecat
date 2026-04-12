@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 // Package keychain wraps the OS credential store via go-keyring.
 // On systems where the keychain is unavailable (headless servers, CI), it
 // falls back to config-file storage with a logged warning.
