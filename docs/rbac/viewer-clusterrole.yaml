@@ -1,0 +1,123 @@
+---
+# viewer-clusterrole.yaml
+#
+# Minimum RBAC permissions for Kubecat operating in read-only mode.
+# Grants read access to all resource kinds used by the Resource Explorer,
+# Visualizer, Security Scanner, Timeline, and RBAC Analysis features.
+#
+# Secrets are intentionally excluded from `get`/`watch`: the viewer role
+# cannot decode secret values. Use operator-clusterrole.yaml if you need
+# the Secret Viewer feature (which calls Get on the secret object).
+#
+# Usage:
+#   kubectl apply -f viewer-clusterrole.yaml
+#   kubectl create clusterrolebinding kubecat-viewer \
+#     --clusterrole=kubecat-viewer \
+#     --serviceaccount=<namespace>:<service-account>
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubecat-viewer
+  labels:
+    app.kubernetes.io/name: kubecat
+    app.kubernetes.io/component: rbac
+rules:
+  # Core workload resources
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - replicationcontrollers
+      - services
+      - endpoints
+      - namespaces
+      - nodes
+      - persistentvolumes
+      - persistentvolumeclaims
+      - configmaps
+      - events
+      - serviceaccounts
+    verbs: ["get", "list", "watch"]
+
+  # Secret metadata only (name and labels — not values).
+  # The viewer role never reads Secret .data or .stringData.
+  # To use the Secret Viewer feature, use operator-clusterrole.yaml.
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: ["list"]
+
+  # Apps resources
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+    verbs: ["get", "list", "watch"]
+
+  # Batch resources
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]
+
+  # Networking
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: ["get", "list", "watch"]
+
+  # Storage
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs: ["get", "list", "watch"]
+
+  # RBAC introspection (for Security Scanner and RBAC Analysis)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - clusterroles
+      - clusterrolebindings
+      - roles
+      - rolebindings
+    verbs: ["get", "list"]
+
+  # Policy engines — read-only
+  - apiGroups: ["constraints.gatekeeper.sh"]
+    resources: ["*"]
+    verbs: ["get", "list"]
+
+  - apiGroups: ["kyverno.io"]
+    resources:
+      - clusterpolicies
+      - policies
+    verbs: ["get", "list"]
+
+  # GitOps — ArgoCD
+  - apiGroups: ["argoproj.io"]
+    resources:
+      - applications
+      - applicationsets
+    verbs: ["get", "list", "watch"]
+
+  # GitOps — Flux
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources:
+      - kustomizations
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources:
+      - helmreleases
+    verbs: ["get", "list", "watch"]
+
+  # Metrics (optional — required for node/pod resource usage in UI)
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - nodes
+      - pods
+    verbs: ["get", "list"]
