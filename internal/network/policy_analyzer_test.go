@@ -307,14 +307,11 @@ func TestAnalyzeNamespace_NamespaceSelector_WithPodSelector_HitsExternalBranch(t
 
 // TestAnalyzeNamespace_NamespaceSelectorOnly_PanicsDocumentedBug pins a
 // documented NIL-POINTER crash in AnalyzeNamespace: a NetworkPolicy peer
-// with only `namespaceSelector` (no `podSelector`) triggers a nil deref at
-// policy_analyzer.go:136 because peer.PodSelector is a *struct that is
-// dereferenced without a nil check.
-//
-// This test recovers from the panic so CI stays green and surfaces the
-// regression clearly. When policy_analyzer.go is fixed to guard
-// peer.PodSelector == nil, flip this test to assert a successful analysis.
-func TestAnalyzeNamespace_NamespaceSelectorOnly_PanicsDocumentedBug(t *testing.T) {
+// with only `namespaceSelector` (no `podSelector`) must not panic. Previously,
+// policy_analyzer.go:136 dereferenced peer.PodSelector unconditionally; now
+// guarded by a nil-check. This test asserts the graph renders the peer as an
+// external node edge instead of crashing.
+func TestAnalyzeNamespace_NamespaceSelectorOnly_NoPanic(t *testing.T) {
 	cl := newFake()
 	cl.add("pods", "ns", pod("api", map[string]string{"role": "api"}))
 
@@ -339,12 +336,23 @@ func TestAnalyzeNamespace_NamespaceSelectorOnly_PanicsDocumentedBug(t *testing.T
 		},
 	})
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("PIN: expected nil-pointer panic for namespaceSelector-only peer; bug may be fixed — update test to assert graph success")
+	graph, err := AnalyzeNamespace(context.Background(), cl, "ns")
+	if err != nil {
+		t.Fatalf("AnalyzeNamespace: %v", err)
+	}
+	if graph == nil {
+		t.Fatal("graph must not be nil")
+	}
+	var foundExternalEdge bool
+	for _, e := range graph.Edges {
+		if e.Source == "external/other-ns" {
+			foundExternalEdge = true
+			break
 		}
-	}()
-	_, _ = AnalyzeNamespace(context.Background(), cl, "ns")
+	}
+	if !foundExternalEdge {
+		t.Errorf("expected external/other-ns edge for namespaceSelector-only peer; edges=%+v", graph.Edges)
+	}
 }
 
 // TestAnalyzeNamespace_DuplicateRulesDeduped verifies that if two rules emit

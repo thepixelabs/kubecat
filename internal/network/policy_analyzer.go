@@ -133,7 +133,10 @@ func AnalyzeNamespace(ctx context.Context, cl client.ClusterClient, namespace st
 					continue
 				}
 				for _, peer := range rule.From {
-					sourcePods := selectPods(graph.Nodes, peer.PodSelector.MatchLabels)
+					var sourcePods []NetworkNode
+					if peer.PodSelector != nil {
+						sourcePods = selectPods(graph.Nodes, peer.PodSelector.MatchLabels)
+					}
 					for _, src := range sourcePods {
 						edgeKey := src.ID + "→" + targetPod.ID
 						edgeSet[edgeKey] = NetworkEdge{
