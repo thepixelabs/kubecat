@@ -151,10 +151,15 @@ jobs:
           # Requires: APPLE_API_KEY_ID, APPLE_API_ISSUER_ID, APPLE_API_KEY_P8
           if [ -n "$APPLE_API_KEY_ID" ]; then
             echo "Notarizing $DMG_NAME..."
+            # notarytool requires --key to be a real file path, not a process
+            # substitution /dev/fd/63 (it reopens the file and that fails).
+            API_KEY_FILE=$(mktemp /tmp/apple_api_key.XXXXXX.p8)
+            printf '%s' "$APPLE_API_KEY_P8" > "$API_KEY_FILE"
+            trap 'rm -f "$API_KEY_FILE"' EXIT
             xcrun notarytool submit "../../dist/$DMG_NAME" \
               --key-id "$APPLE_API_KEY_ID" \
               --issuer "$APPLE_API_ISSUER_ID" \
-              --key <(echo "$APPLE_API_KEY_P8") \
+              --key "$API_KEY_FILE" \
               --wait
             echo "Stapling notarization ticket to DMG..."
             xcrun stapler staple "../../dist/$DMG_NAME"
