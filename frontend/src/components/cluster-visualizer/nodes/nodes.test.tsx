@@ -200,12 +200,23 @@ describe("ServerNode", () => {
     expect(container.innerHTML).toContain("border-indigo-500");
   });
 
-  it("applies the not-ready border when status does not match the ready check", () => {
-    // NOTE: The current implementation uses `status.toLowerCase().includes("ready")`
-    // which will also match "NotReady" — so we assert with a status that has
-    // no "ready" substring at all. See BUG note in report.
+  it("applies the not-ready border when status is 'Unknown'", () => {
     const { container } = render(
       <ServerNode data={{ label: "n", status: "Unknown" }} />
+    );
+    expect(container.innerHTML).toContain("border-red-500");
+  });
+
+  it("applies the not-ready border when status is 'NotReady' (no false-positive from substring match)", () => {
+    const { container } = render(
+      <ServerNode data={{ label: "n", status: "NotReady" }} />
+    );
+    expect(container.innerHTML).toContain("border-red-500");
+  });
+
+  it("applies the not-ready border when status is 'Not Ready' (with space)", () => {
+    const { container } = render(
+      <ServerNode data={{ label: "n", status: "Not Ready" }} />
     );
     expect(container.innerHTML).toContain("border-red-500");
   });

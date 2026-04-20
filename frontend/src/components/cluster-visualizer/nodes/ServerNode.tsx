@@ -32,7 +32,8 @@ function ServerNodeComponent({ data, selected }: ServerNodeProps) {
     return "";
   };
 
-  const isReady = data.status?.toLowerCase().includes("ready");
+  const status = data.status?.toLowerCase() ?? "";
+  const isReady = status.includes("ready") && !status.includes("notready") && !status.includes("not ready");
   const borderColor = isReady ? "border-indigo-500" : "border-red-500";
   const bgColor = isReady ? "bg-indigo-500/10" : "bg-red-500/10";
 
