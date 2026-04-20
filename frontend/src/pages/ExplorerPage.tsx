@@ -35,10 +35,10 @@ import {
   ListResources,
   GetResourceYAML,
   GetSecretData,
-  GetNodeMetrics,
+  GetNodeAllocation,
 } from "../../wailsjs/go/main/App";
 import { useAIStore } from "../stores/aiStore";
-import type { ResourceInfo, NodeMetricsInfo, SelectedPod } from "../types/resources";
+import type { ResourceInfo, NodeAllocationInfo, SelectedPod } from "../types/resources";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ export function ExplorerPage({
   const [secretData, setSecretData] = useState<Record<string, string>>({});
   const [secretDataLoading, setSecretDataLoading] = useState(false);
   const [revealedSecretKeys, setRevealedSecretKeys] = useState<Set<string>>(new Set());
-  const [_nodeMetrics, setNodeMetrics] = useState<Record<string, NodeMetricsInfo>>({});
+  const [_nodeMetrics, setNodeMetrics] = useState<Record<string, NodeAllocationInfo>>({});
 
   // Column toggles
   const [showResources, setShowResources] = useState(false);
@@ -205,8 +205,8 @@ export function ExplorerPage({
 
   const fetchNodeMetrics = async () => {
     try {
-      const metrics = await GetNodeMetrics();
-      const map: Record<string, NodeMetricsInfo> = {};
+      const metrics = await GetNodeAllocation();
+      const map: Record<string, NodeAllocationInfo> = {};
       for (const m of metrics || []) map[m.nodeName] = m;
       setNodeMetrics(map);
     } catch { /* non-blocking */ }

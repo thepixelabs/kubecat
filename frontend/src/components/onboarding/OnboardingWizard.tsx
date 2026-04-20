@@ -268,6 +268,7 @@ function ClusterStep({
                   disabled={connecting || isActive}
                   whileHover={!isActive ? { scale: 1.01 } : undefined}
                   whileTap={!isActive ? { scale: 0.99 } : undefined}
+                  title={ctx}
                   className={`
                     w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all
                     ${
@@ -283,7 +284,7 @@ function ClusterStep({
                       isActive ? "bg-emerald-400" : "bg-slate-600"
                     }`}
                   />
-                  <span className="flex-1 font-mono text-sm truncate">
+                  <span className="flex-1 font-mono text-sm truncate" title={ctx}>
                     {ctx}
                   </span>
                   {isConnectingThis ? (

@@ -70,6 +70,11 @@ func (a *App) StartResourceWatch(kind, namespace string) error {
 					slog.String("type", event.Type),
 					slog.String("name", event.Resource.Name))
 
+				// Guard against nil context (tests, or shutdown racing ahead of
+				// startup): runtime.EventsEmit calls log.Fatal when ctx is nil.
+				if a.ctx == nil {
+					continue
+				}
 				runtime.EventsEmit(a.ctx, "resource:changed", resourceChangedEvent{
 					EventType: event.Type,
 					Kind:      event.Resource.Kind,

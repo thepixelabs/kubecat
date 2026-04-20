@@ -11,6 +11,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, type LucideIcon } from "lucide-react";
+import { shortClusterName } from "../utils/displayName";
 
 interface NavItem {
   id: string;
@@ -26,7 +27,11 @@ interface SidebarProps {
   isConnected: boolean;
   appVersion: string;
   contextQueueCount: number;
-   
+  /** Currently connected kubeconfig context. Optional for backward-compat
+   *  until callers are updated. When present, the footer status line shows
+   *  the cluster short-name with the full value on hover. */
+  activeContext?: string;
+
   onNavigate: (view: any) => void;
   onToggleCollapse: () => void;
 }
@@ -38,9 +43,14 @@ export function Sidebar({
   isConnected,
   appVersion,
   contextQueueCount,
+  activeContext,
   onNavigate,
   onToggleCollapse,
 }: SidebarProps) {
+  const connectedLabel =
+    isConnected && activeContext ? shortClusterName(activeContext) : isConnected ? "Connected" : "No cluster";
+  const connectedTitle =
+    isConnected && activeContext ? activeContext : isConnected ? "Connected" : "No cluster connected";
   return (
     <motion.aside
       className="
@@ -140,10 +150,14 @@ export function Sidebar({
                       ? "text-emerald-700 dark:text-emerald-400"
                       : "text-stone-500 dark:text-slate-500"
                   }`}
+                  title={connectedTitle}
                 >
-                  {isConnected ? "Connected" : "No cluster"}
+                  {connectedLabel}
                 </span>
-                <span className="text-[10px] text-stone-400 dark:text-slate-600 font-mono leading-tight truncate">
+                <span
+                  className="text-[10px] text-stone-400 dark:text-slate-600 font-mono leading-tight truncate"
+                  title={appVersion}
+                >
                   {appVersion}
                 </span>
               </div>

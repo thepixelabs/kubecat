@@ -1,20 +1,22 @@
 /**
  * SettingsModal — Extracted settings dialog with AI, Theme, and Telemetry tabs.
  *
- * - Tabs: Appearance, AI Provider, Telemetry
+ * - Tabs: Appearance, AI Provider, Cost, Telemetry
  * - Focus trap + Escape to close + backdrop click
  * - Full a11y: role="dialog", aria-modal, aria-labelledby
  */
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Palette, Bot, BarChart2 } from "lucide-react";
+import { X, Palette, Bot, BarChart2, Coins } from "lucide-react";
 import { ThemeSettings, type ColorTheme } from "./ThemeSettings";
 import { TelemetrySettings } from "./TelemetrySettings";
+import { AIProviderSettings } from "./AIProviderSettings";
+import { CostSettings } from "./CostSettings";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type SettingsTab = "appearance" | "ai" | "telemetry";
+export type SettingsTab = "appearance" | "ai" | "cost" | "telemetry";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -23,6 +25,12 @@ interface SettingsModalProps {
   setColorTheme: (theme: ColorTheme) => void;
   selectionColor: string;
   setSelectionColor: (color: string) => void;
+  /**
+   * Optional initial tab to open the modal on.  When specified (e.g. from a
+   * "Configure" affordance on the AI query view) the modal bypasses the
+   * default Appearance tab and jumps straight to the requested section.
+   */
+  initialTab?: SettingsTab;
 }
 
 // ── Tab config ────────────────────────────────────────────────────────────────
@@ -30,6 +38,7 @@ interface SettingsModalProps {
 const TABS: { id: SettingsTab; label: string; icon: typeof Palette }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "ai", label: "AI Provider", icon: Bot },
+  { id: "cost", label: "Cost", icon: Coins },
   { id: "telemetry", label: "Analytics", icon: BarChart2 },
 ];
 
@@ -42,10 +51,20 @@ export function SettingsModal({
   setColorTheme,
   selectionColor,
   setSelectionColor,
+  initialTab,
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? "appearance");
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Sync the active tab when the modal is (re)opened with a new initialTab.
+  // This lets callers deep-link: e.g. "Configure" in the AI view opens directly
+  // on the AI Provider tab without the user having to tab-switch.
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -212,6 +231,8 @@ export function SettingsModal({
 
                     {activeTab === "ai" && <AIProviderSettings />}
 
+                    {activeTab === "cost" && <CostSettings />}
+
                     {activeTab === "telemetry" && <TelemetrySettings />}
                   </motion.div>
                 </AnimatePresence>
@@ -224,51 +245,5 @@ export function SettingsModal({
   );
 }
 
-// ── AIProviderSettings (inline lightweight section) ───────────────────────────
-
-function AIProviderSettings() {
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-stone-600 dark:text-slate-400">
-        Configure your AI provider in the{" "}
-        <span className="font-medium text-stone-800 dark:text-slate-200">
-          AI Query
-        </span>{" "}
-        view via the model selector in the top bar. Supported providers:
-        Anthropic Claude, OpenAI, Google Gemini, and local Ollama.
-      </p>
-
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { name: "Anthropic Claude", type: "cloud", color: "text-amber-500" },
-          { name: "OpenAI GPT", type: "cloud", color: "text-emerald-500" },
-          { name: "Google Gemini", type: "cloud", color: "text-blue-500" },
-          { name: "Ollama (local)", type: "local", color: "text-violet-500" },
-        ].map((provider) => (
-          <div
-            key={provider.name}
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-stone-100/60 dark:bg-slate-800/40 border border-stone-200/60 dark:border-slate-700/40"
-          >
-            <span
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${provider.color.replace("text-", "bg-")}`}
-              aria-hidden="true"
-            />
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-stone-700 dark:text-slate-300 truncate">
-                {provider.name}
-              </p>
-              <p className="text-[10px] text-stone-400 dark:text-slate-500">
-                {provider.type}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <p className="text-xs text-stone-400 dark:text-slate-500">
-        API keys and model preferences are saved locally in your app data
-        directory and are never uploaded.
-      </p>
-    </div>
-  );
-}
+// AIProviderSettings is imported from its own module — kept out of this file to
+// keep the dialog shell small and focused on tab routing.

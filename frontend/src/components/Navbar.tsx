@@ -20,6 +20,41 @@ import {
   Terminal,
   GitBranch,
 } from "lucide-react";
+import { shortClusterName } from "../utils/displayName";
+
+/**
+ * Proper labels for view IDs. Plain CSS `capitalize` turns "gitops" into
+ * "Gitops" and "rbac" into "Rbac" — neither of which is how anyone writes
+ * those product names. Anything not in this map falls back to a
+ * capitalize-each-word transform.
+ */
+const VIEW_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  query: "AI Query",
+  resources: "Resources",
+  visualizer: "Cluster Visualizer",
+  "cluster-diff": "Cluster Diff",
+  gitops: "GitOps",
+  security: "Security",
+  rbac: "RBAC",
+  snapshots: "Snapshots",
+  timeline: "Timeline",
+  "port-forwards": "Port Forwards",
+  "ai-settings": "AI Settings",
+  settings: "Settings",
+  epics: "Agent Epics",
+  help: "Help",
+};
+
+function formatViewLabel(view: string): string {
+  if (VIEW_LABELS[view]) return VIEW_LABELS[view];
+  // Fallback: split on - / _ / space and Title Case each token.
+  return view
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 interface NavbarProps {
   activeView: string;
@@ -64,7 +99,8 @@ export function Navbar({
   onToggleTerminal,
   terminalOpen,
 }: NavbarProps) {
-  const viewLabel = activeView.charAt(0).toUpperCase() + activeView.slice(1).replace(/-/g, " ");
+  const viewLabel = formatViewLabel(activeView);
+  const contextShort = activeContext ? shortClusterName(activeContext) : "";
 
   return (
     <header
@@ -104,9 +140,10 @@ export function Navbar({
           className="
             text-sm sm:text-base font-semibold
             text-stone-800 dark:text-slate-100
-            truncate capitalize
+            truncate
             font-sans
           "
+          title={viewLabel}
         >
           {viewLabel}
         </h1>
@@ -122,6 +159,13 @@ export function Navbar({
             disabled={connecting}
             aria-haspopup="listbox"
             aria-expanded={showContextMenu}
+            title={
+              connecting
+                ? "Connecting…"
+                : isConnected && activeContext
+                ? activeContext
+                : "Select cluster"
+            }
             className={`
               group flex items-center gap-1.5 sm:gap-2
               h-8 px-2.5 sm:px-3 rounded-lg
@@ -160,12 +204,14 @@ export function Navbar({
               `}
             />
 
-            {/* Context name — hidden on tiny screens */}
-            <span className="hidden xs:inline max-w-[100px] sm:max-w-[140px] truncate">
+            {/* Context name — hidden on tiny screens. Uses a short/derived label
+                (e.g. EKS ARN suffix) for readability; full value is on the
+                button's `title` above for hover tooltip. */}
+            <span className="hidden xs:inline max-w-[140px] sm:max-w-[220px] truncate">
               {connecting
                 ? "Connecting…"
                 : isConnected && activeContext
-                ? activeContext
+                ? contextShort
                 : "Select cluster"}
             </span>
 
@@ -192,7 +238,7 @@ export function Navbar({
                 exit={{ opacity: 0, y: -6, scale: 0.97 }}
                 transition={{ duration: 0.12 }}
                 className="
-                  absolute right-0 top-full mt-2 w-64
+                  absolute right-0 top-full mt-2 w-80 sm:w-96
                   bg-white/90 dark:bg-slate-900/90
                   backdrop-blur-xl
                   border border-stone-200 dark:border-slate-700/60
@@ -243,6 +289,7 @@ export function Navbar({
                           aria-selected={isActive}
                           onClick={() => onConnect(ctx)}
                           onMouseEnter={() => onSetContextMenuIndex(index)}
+                          title={ctx}
                           className={`
                             w-full text-left px-3 py-2 text-sm transition-colors
                             flex items-center gap-2
@@ -261,9 +308,11 @@ export function Navbar({
                                 : "bg-stone-300 dark:bg-slate-600"
                             }`}
                           />
-                          <span className="truncate font-mono text-xs">{ctx}</span>
+                          <span className="truncate font-mono text-xs" title={ctx}>
+                            {shortClusterName(ctx)}
+                          </span>
                           {isActive && (
-                            <span className="ml-auto text-[10px] text-accent-500 dark:text-accent-400 font-medium">
+                            <span className="ml-auto text-[10px] text-accent-500 dark:text-accent-400 font-medium flex-shrink-0">
                               active
                             </span>
                           )}

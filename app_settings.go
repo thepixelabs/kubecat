@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -17,6 +18,12 @@ import (
 	"github.com/thepixelabs/kubecat/internal/config"
 	"github.com/thepixelabs/kubecat/internal/network"
 )
+
+// apiKeyParamPattern matches `key=<value>` or `api_key=<value>` style query
+// parameters so we can redact them from error messages without needing to
+// know the exact key value (e.g. when the provider echoes the URL back in a
+// 4xx response with a shortened/modified key).
+var apiKeyParamPattern = regexp.MustCompile(`((?:api[_-]?key|key|x-api-key|authorization)=)[^&\s"']+`)
 
 // AISettings is a JSON-friendly AI configuration.
 type AISettings struct {
@@ -379,17 +386,28 @@ func (a *App) FetchProviderModels(provider, endpoint, apiKey string) ([]string, 
 		return nil, fmt.Errorf("endpoint blocked by network policy: %w", err)
 	}
 
+	// Extra headers to set on the request (provider-specific).
+	var extraHeaders map[string]string
+
 	switch provider {
 	case "openai", "litellm":
 		modelsEndpoint = endpoint + "/models"
 		authHeader = "Authorization"
 		authValue = "Bearer " + apiKey
 	case "anthropic":
-		// Anthropic doesn't have a standardized public models endpoint via API yet, return structured defaults
-		return []string{"claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307", "claude-3-5-sonnet-20241022"}, nil
+		// Anthropic exposes GET /v1/models authenticated via the x-api-key header.
+		// Docs: https://docs.anthropic.com/en/api/models-list
+		// Using the live endpoint means an invalid key surfaces as a 401 instead
+		// of a false-positive green "connected" state in the UI.
+		modelsEndpoint = endpoint + "/models"
+		authHeader = "x-api-key"
+		authValue = apiKey
+		extraHeaders = map[string]string{
+			"anthropic-version": "2023-06-01",
+		}
 	case "google":
 		modelsEndpoint = endpoint + "/models"
-		modelsEndpoint += "?key=" + apiKey
+		modelsEndpoint += "?key=" + url.QueryEscape(apiKey)
 	case "ollama":
 		modelsEndpoint = endpoint + "/api/tags"
 		// Ollama doesn't need auth usually
@@ -405,33 +423,51 @@ func (a *App) FetchProviderModels(provider, endpoint, apiKey string) ([]string, 
 	if authHeader != "" && authValue != "" {
 		req.Header.Set(authHeader, authValue)
 	}
+	for k, v := range extraHeaders {
+		req.Header.Set(k, v)
+	}
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch models: %w", err)
+		// Never let the caller see the raw URL — it may contain the API key as a
+		// query parameter (e.g. Google's ?key=).
+		return nil, fmt.Errorf("failed to reach provider %q: %w", provider, redactErr(err, apiKey))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch models: %s - %s", resp.Status, string(body))
+		// Read at most 2KiB of the body — enough to extract a human-readable
+		// error without risking leaking or bloating the toast.
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		snippet := redactString(string(body), apiKey)
+		switch resp.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return nil, fmt.Errorf("authentication failed (%s) for provider %q — check your API key", resp.Status, provider)
+		default:
+			return nil, fmt.Errorf("provider %q returned %s: %s", provider, resp.Status, snippet)
+		}
 	}
 
 	var models []string
 
 	switch provider {
-	case "openai", "litellm":
+	case "openai", "litellm", "anthropic":
+		// All three providers return a `data: [{id: "..."}]` envelope for the
+		// models endpoint. Anthropic includes additional capability fields we
+		// simply ignore — the `id` is all we need for the dropdown.
 		var result struct {
 			Data []struct {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
+			return nil, fmt.Errorf("failed to decode response from %q: %w", provider, err)
 		}
 		for _, m := range result.Data {
-			models = append(models, m.ID)
+			if m.ID != "" {
+				models = append(models, m.ID)
+			}
 		}
 	case "google":
 		var result struct {
@@ -466,4 +502,27 @@ func (a *App) FetchProviderModels(provider, endpoint, apiKey string) ([]string, 
 	}
 
 	return models, nil
+}
+
+// redactString scrubs the provided API key from a free-form string so it can
+// safely cross the Wails boundary into the UI.  It is a best-effort filter —
+// callers should still avoid echoing server responses verbatim when possible.
+func redactString(s, apiKey string) string {
+	if apiKey != "" && len(apiKey) >= 4 {
+		s = strings.ReplaceAll(s, apiKey, "[REDACTED]")
+	}
+	// Best-effort scrub of "key=…" query parameters that may end up in server
+	// error text (e.g. Google surfaces the full URL in some 4xx responses).
+	s = apiKeyParamPattern.ReplaceAllString(s, "$1[REDACTED]")
+	return s
+}
+
+// redactErr wraps an error so that its message is scrubbed of the API key
+// before reaching the caller.  Go's net/url errors often include the full URL
+// verbatim, which leaks Google's ?key= parameter.
+func redactErr(err error, apiKey string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s", redactString(err.Error(), apiKey))
 }

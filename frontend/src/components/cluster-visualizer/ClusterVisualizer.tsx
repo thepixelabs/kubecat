@@ -30,6 +30,8 @@ import { useClusterGraph } from "./hooks/useClusterGraph";
 import { usePathHighlight } from "./hooks/usePathHighlight";
 import { StartTerminal, CloseTerminal } from "../../../wailsjs/go/main/App";
 import type { ClusterNode, ToggleState } from "./types";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, ChevronDown } from "lucide-react";
 
 // Use 'any' for node types to avoid React Flow's strict typing issues
 const nodeTypes = {
@@ -107,7 +109,12 @@ export function ClusterVisualizer({
   onRefreshNamespaces,
 }: ClusterVisualizerProps) {
   const { resolvedTheme } = useTheme();
-  const [selectedNamespace, setSelectedNamespace] = useState<string>("default");
+  // Default to "" ("All Namespaces") so users whose `default` namespace is
+  // empty still see a populated graph on first load. TogglePanel.tsx already
+  // sends "" for the "All Namespaces" option, so this matches existing
+  // convention.
+  const [selectedNamespace, setSelectedNamespace] = useState<string>("");
+  const [layoutError, setLayoutError] = useState<string | null>(null);
   const [toggles, setToggles] = useState<ToggleState>({
     showPods: true,
     showServices: true,
@@ -544,8 +551,15 @@ export function ClusterVisualizer({
 
         setNodes(layoutedNodes);
         setEdges(layoutedEdges);
+        setLayoutError(null);
       } catch (err) {
+        // Surface ELK failures into the UI (see error branch below).
+        // Swallowing into console.error alone left the canvas permanently
+        // blank whenever the layout engine threw.
         console.error("Layout failed:", err);
+        const message =
+          err instanceof Error ? err.message : "Layout engine failed";
+        setLayoutError(message);
       }
     };
 
@@ -629,10 +643,12 @@ export function ClusterVisualizer({
     );
   }
 
-  if (error) {
+  if (error || layoutError) {
     return (
       <div className="h-full flex items-center justify-center text-destructive">
-        Error loading cluster data: {error}
+        {error
+          ? `Error loading cluster data: ${error}`
+          : `Graph layout failed: ${layoutError}`}
       </div>
     );
   }
@@ -727,13 +743,15 @@ export function ClusterVisualizer({
         </Panel>
       </ReactFlow>
 
-      <TogglePanel
-        toggles={toggles}
-        onToggle={handleToggle}
+      {/* Always-visible namespace HUD. Lives outside the draggable TogglePanel
+          so it is discoverable even when users never open the panel. */}
+      <NamespaceHud
         namespaces={namespaces}
         selectedNamespace={selectedNamespace}
         onNamespaceChange={setSelectedNamespace}
       />
+
+      <TogglePanel toggles={toggles} onToggle={handleToggle} />
 
       {/* Metadata Drawer */}
       <MetadataDrawer
@@ -770,6 +788,86 @@ export function ClusterVisualizer({
         nodeName={selectedNode?.name || ""}
         namespace={selectedNode?.namespace || ""}
       />
+    </div>
+  );
+}
+
+interface NamespaceHudProps {
+  namespaces: string[];
+  selectedNamespace: string;
+  onNamespaceChange: (ns: string) => void;
+}
+
+// Compact always-visible namespace switcher anchored to the top-left of the
+// graph. Deliberately NOT draggable — previously the only namespace control
+// lived inside TogglePanel, which users can miss entirely, so they would see
+// a blank canvas and have no idea the empty result came from a namespace
+// filter. This sits above the draggable panel and always renders.
+function NamespaceHud({
+  namespaces,
+  selectedNamespace,
+  onNamespaceChange,
+}: NamespaceHudProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="absolute top-4 left-4 z-20 min-w-[200px] max-w-[240px]">
+      <label className="text-[10px] text-stone-500 dark:text-slate-400 uppercase tracking-wider block mb-1 pl-1">
+        Namespace
+      </label>
+      <div className="relative">
+        <button
+          onClick={() => setIsOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-stone-200 dark:border-slate-700 rounded-lg hover:border-stone-300 dark:hover:border-slate-600 transition-colors shadow-lg"
+        >
+          <span className="text-sm text-stone-700 dark:text-slate-200 truncate">
+            {selectedNamespace || "All Namespaces"}
+          </span>
+          <ChevronDown className="w-4 h-4 text-stone-400 dark:text-slate-500 shrink-0" />
+        </button>
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              className="absolute z-30 top-full left-0 right-0 mt-1 py-1 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-auto"
+            >
+              <button
+                onClick={() => {
+                  onNamespaceChange("");
+                  setIsOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-stone-100 dark:hover:bg-slate-700 transition-colors ${
+                  selectedNamespace === ""
+                    ? "text-accent-600 dark:text-accent-400 bg-accent-50 dark:bg-accent-500/10"
+                    : "text-stone-700 dark:text-slate-300"
+                }`}
+              >
+                <span>All Namespaces</span>
+                {selectedNamespace === "" && <Check className="w-4 h-4" />}
+              </button>
+              {namespaces.map((ns) => (
+                <button
+                  key={ns}
+                  onClick={() => {
+                    onNamespaceChange(ns);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-stone-100 dark:hover:bg-slate-700 transition-colors ${
+                    selectedNamespace === ns
+                      ? "text-accent-600 dark:text-accent-400 bg-accent-50 dark:bg-accent-500/10"
+                      : "text-stone-700 dark:text-slate-300"
+                  }`}
+                >
+                  <span className="truncate">{ns}</span>
+                  {selectedNamespace === ns && <Check className="w-4 h-4" />}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

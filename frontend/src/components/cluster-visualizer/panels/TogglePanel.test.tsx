@@ -38,83 +38,19 @@ describe("TogglePanel", () => {
     showOperatorToManaged: true,
   };
 
-  const namespaces = ["default", "kube-system", "monitoring"];
-
   const renderTogglePanel = (
     props: Partial<{
       toggles: ToggleState;
       onToggle: (key: keyof ToggleState) => void;
-      namespaces: string[];
-      selectedNamespace: string;
-      onNamespaceChange: (ns: string) => void;
     }> = {}
   ) => {
     const defaultProps = {
       toggles: defaultToggles,
       onToggle: vi.fn(),
-      namespaces,
-      selectedNamespace: "default",
-      onNamespaceChange: vi.fn(),
     };
 
     return render(<TogglePanel {...defaultProps} {...props} />);
   };
-
-  describe("namespace selector", () => {
-    it("should render namespace dropdown with options", () => {
-      renderTogglePanel();
-
-      // Find the dropdown trigger button
-      const dropdownButton = screen.getByText("default");
-      expect(dropdownButton).toBeInTheDocument();
-
-      // Open the dropdown
-      fireEvent.click(dropdownButton);
-
-      // Should have "All Namespaces" option plus our namespaces
-      expect(screen.getByText("All Namespaces")).toBeInTheDocument();
-      expect(screen.getAllByText("default").length).toBeGreaterThan(0); // One in button, one in list
-      expect(screen.getByText("kube-system")).toBeInTheDocument();
-      expect(screen.getByText("monitoring")).toBeInTheDocument();
-    });
-
-    it("should show selected namespace as value", () => {
-      renderTogglePanel({ selectedNamespace: "kube-system" });
-
-      expect(screen.getByText("kube-system")).toBeInTheDocument();
-    });
-
-    it("should call onNamespaceChange when selection changes", () => {
-      const onNamespaceChange = vi.fn();
-      renderTogglePanel({ onNamespaceChange });
-
-      // Open dropdown
-      const dropdownButton = screen.getByText("default");
-      fireEvent.click(dropdownButton);
-
-      // Click option
-      const monitoringOption = screen.getByText("monitoring");
-      fireEvent.click(monitoringOption);
-
-      expect(onNamespaceChange).toHaveBeenCalledWith("monitoring");
-    });
-
-    it('should allow selecting "All Namespaces" (empty value)', () => {
-      const onNamespaceChange = vi.fn();
-      renderTogglePanel({ onNamespaceChange });
-
-      // Open dropdown
-      const dropdownButton = screen.getByText("default");
-      fireEvent.click(dropdownButton);
-
-      // Click "All Namespaces" option
-      // The first one is likely the "All Namespaces"
-      const allNamespacesOption = screen.getByText("All Namespaces");
-      fireEvent.click(allNamespacesOption);
-
-      expect(onNamespaceChange).toHaveBeenCalledWith("");
-    });
-  });
 
   describe("resource toggles", () => {
     it("should render all resource toggle buttons", () => {
@@ -256,7 +192,6 @@ describe("TogglePanel", () => {
     it("should render section headers", () => {
       renderTogglePanel();
 
-      expect(screen.getByText("Namespace")).toBeInTheDocument();
       expect(screen.getByText("Resources")).toBeInTheDocument();
       expect(screen.getByText("Infrastructure & Logic")).toBeInTheDocument();
       expect(screen.getByText("Connections")).toBeInTheDocument();

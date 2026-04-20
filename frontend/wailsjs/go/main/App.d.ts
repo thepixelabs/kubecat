@@ -37,6 +37,8 @@ export function CreatePortForward(arg1:string,arg2:string,arg3:number,arg4:numbe
 
 export function DeleteResource(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function DetectCostBackend():Promise<string>;
+
 export function Disconnect(arg1:string):Promise<void>;
 
 export function ExecuteCommand(arg1:string):Promise<string>;
@@ -83,7 +85,7 @@ export function GetNamespaceRBAC(arg1:string,arg2:string):Promise<rbac.RBACMatri
 
 export function GetNetworkPolicyYAML(arg1:string,arg2:string,arg3:string):Promise<string>;
 
-export function GetNodeMetrics():Promise<Array<main.NodeMetricsInfo>>;
+export function GetNodeAllocation():Promise<Array<main.NodeAllocationInfo>>;
 
 export function GetRBACAnalysis():Promise<main.RBACSummary>;
 

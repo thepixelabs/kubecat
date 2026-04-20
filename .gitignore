@@ -78,6 +78,9 @@ kubecat_test
 # Temp files
 *.tmp
 
+# Scratch files — never commit
+meow.txt
+
 # Scratch images in repository root (AI-generated, not part of app assets)
 # App images live in build/, frontend/public/, and docs/assets/
 /Gemini_Generated_Image_*.png

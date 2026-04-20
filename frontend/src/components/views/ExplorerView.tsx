@@ -21,11 +21,11 @@ import {
   ListResources,
   GetResourceYAML,
   GetSecretData,
-  GetNodeMetrics,
+  GetNodeAllocation,
   StartTerminal,
   CloseTerminal,
 } from "../../../wailsjs/go/main/App";
-import type { ResourceInfo, NodeMetricsInfo, SelectedPod } from "../../types/resources";
+import type { ResourceInfo, NodeAllocationInfo, SelectedPod } from "../../types/resources";
 import { AnalysisModal } from "../AnalysisModal";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { TerminalDrawer } from "../Terminal/TerminalDrawer";
@@ -147,7 +147,7 @@ export function ExplorerView({
   const [showTaints, setShowTaints] = useState(false);
   const [showNodeInfo, setShowNodeInfo] = useState(false);
   const [showIssuesOnly, setShowIssuesOnly] = useState(false);
-  const [nodeMetrics, setNodeMetrics] = useState<Record<string, NodeMetricsInfo>>({});
+  const [nodeMetrics, setNodeMetrics] = useState<Record<string, NodeAllocationInfo>>({});
 
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -226,8 +226,8 @@ export function ExplorerView({
 
   const fetchNodeMetrics = async () => {
     try {
-      const metrics = await GetNodeMetrics();
-      const metricsMap: Record<string, NodeMetricsInfo> = {};
+      const metrics = await GetNodeAllocation();
+      const metricsMap: Record<string, NodeAllocationInfo> = {};
       for (const m of metrics || []) {
         metricsMap[m.nodeName] = m;
       }

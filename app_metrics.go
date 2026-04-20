@@ -9,8 +9,14 @@ import (
 	"github.com/thepixelabs/kubecat/internal/client"
 )
 
-// NodeMetricsInfo contains resource utilization metrics for a node.
-type NodeMetricsInfo struct {
+// NodeAllocationInfo contains per-node scheduling headroom: pod resource
+// requests and limits summed up and compared against node allocatable.
+//
+// NOTE: These percentages are *allocation* / reservation ratios, not actual
+// CPU/memory utilization. A node at 100% CPURequestPct can still be idle if
+// the workloads aren't using the CPU they reserved. For true utilization,
+// query metrics.k8s.io (not yet wired).
+type NodeAllocationInfo struct {
 	NodeName       string `json:"nodeName"`
 	PodCount       int    `json:"podCount"`
 	CPURequests    string `json:"cpuRequests"`    // Total CPU requests from pods
@@ -25,8 +31,17 @@ type NodeMetricsInfo struct {
 	MemLimitPct    int    `json:"memLimitPct"`    // Memory limit percentage of allocatable
 }
 
-// GetNodeMetrics returns resource utilization metrics for all nodes.
-func (a *App) GetNodeMetrics() ([]NodeMetricsInfo, error) {
+// GetNodeAllocation returns requests vs allocatable ratios. For actual
+// utilization, use metrics.k8s.io (not yet wired).
+//
+// TODO(frontend): callers in frontend/src/pages/ExplorerPage.tsx (import at
+// line 38, call at line 208) and frontend/src/components/views/ExplorerView.tsx
+// (import at line 24, call at line 229) still reference the old name
+// GetNodeMetrics and the NodeMetricsInfo TypeScript type. Update those imports
+// and type references to GetNodeAllocation / NodeAllocationInfo once the Wails
+// binding regenerates. The corresponding TS type lives in
+// frontend/src/types/resources.ts.
+func (a *App) GetNodeAllocation() ([]NodeAllocationInfo, error) {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
@@ -137,12 +152,12 @@ func (a *App) GetNodeMetrics() ([]NodeMetricsInfo, error) {
 	}
 
 	// Build result
-	var results []NodeMetricsInfo
+	var results []NodeAllocationInfo
 	for _, node := range nodes.Items {
 		agg := nodePods[node.Name]
 		alloc := nodeAlloc[node.Name]
 
-		metrics := NodeMetricsInfo{
+		metrics := NodeAllocationInfo{
 			NodeName:       node.Name,
 			PodCount:       agg.podCount,
 			CPURequests:    formatCPU(agg.cpuRequests),

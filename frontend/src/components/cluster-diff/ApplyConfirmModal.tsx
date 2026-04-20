@@ -102,7 +102,10 @@ export function ApplyConfirmModal({
                   </div>
                   <div className="text-xs text-zinc-500 mt-1">
                     in cluster:{" "}
-                    <span className="text-teal-600 dark:text-teal-400">
+                    <span
+                      className="text-teal-600 dark:text-teal-400 break-all"
+                      title={targetContext}
+                    >
                       {targetContext}
                     </span>
                   </div>
@@ -114,32 +117,69 @@ export function ApplyConfirmModal({
                     Changes to Apply ({differences.length})
                   </div>
                   <div className="space-y-1.5 max-h-40 overflow-auto">
-                    {differences.slice(0, 10).map((diff, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-2 text-xs"
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            diff.severity === "critical"
-                              ? "bg-red-500"
-                              : diff.severity === "warning"
-                              ? "bg-amber-500"
-                              : "bg-blue-500"
-                          }`}
-                        />
-                        <span className="font-mono text-zinc-600 dark:text-zinc-400 flex-1 truncate">
-                          {diff.path}
-                        </span>
-                        <span className="text-zinc-700 dark:text-zinc-600 truncate max-w-[80px]">
-                          {diff.leftValue || "(empty)"}
-                        </span>
-                        <ArrowRight className="w-3 h-3 text-zinc-400 dark:text-zinc-600 flex-shrink-0" />
-                        <span className="text-zinc-900 dark:text-zinc-300 truncate max-w-[80px]">
-                          {diff.rightValue || "(empty)"}
-                        </span>
-                      </div>
-                    ))}
+                    {differences.slice(0, 10).map((diff, idx) => {
+                      // Hard-truncating the values being applied is a
+                      // data-integrity footgun — the user literally cannot
+                      // see what they're about to push. Show the full value
+                      // inline on a second line (monospace, wrapping) and
+                      // keep the inline preview for the common short case.
+                      const leftDisplay = diff.leftValue || "(empty)";
+                      const rightDisplay = diff.rightValue || "(empty)";
+                      const longValue =
+                        leftDisplay.length > 20 || rightDisplay.length > 20;
+                      return (
+                        <div
+                          key={idx}
+                          className="flex flex-col gap-0.5 text-xs py-0.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                diff.severity === "critical"
+                                  ? "bg-red-500"
+                                  : diff.severity === "warning"
+                                  ? "bg-amber-500"
+                                  : "bg-blue-500"
+                              }`}
+                            />
+                            <span
+                              className="font-mono text-zinc-600 dark:text-zinc-400 flex-1 truncate"
+                              title={diff.path}
+                            >
+                              {diff.path}
+                            </span>
+                            {!longValue && (
+                              <>
+                                <span
+                                  className="text-zinc-700 dark:text-zinc-600 truncate max-w-[120px]"
+                                  title={leftDisplay}
+                                >
+                                  {leftDisplay}
+                                </span>
+                                <ArrowRight className="w-3 h-3 text-zinc-400 dark:text-zinc-600 flex-shrink-0" />
+                                <span
+                                  className="text-zinc-900 dark:text-zinc-300 truncate max-w-[120px]"
+                                  title={rightDisplay}
+                                >
+                                  {rightDisplay}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          {longValue && (
+                            <div className="pl-3.5 grid grid-cols-[1fr_auto_1fr] items-start gap-2 font-mono text-[11px]">
+                              <code className="text-zinc-700 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800/60 rounded px-1.5 py-0.5 break-all whitespace-pre-wrap">
+                                {leftDisplay}
+                              </code>
+                              <ArrowRight className="w-3 h-3 text-zinc-400 dark:text-zinc-600 flex-shrink-0 mt-1" />
+                              <code className="text-zinc-900 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800/60 rounded px-1.5 py-0.5 break-all whitespace-pre-wrap">
+                                {rightDisplay}
+                              </code>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     {differences.length > 10 && (
                       <div className="text-xs text-zinc-500 pt-1">
                         +{differences.length - 10} more changes

@@ -423,7 +423,7 @@ export function SecurityView({ isConnected }: { isConnected: boolean }) {
         {mode === "ai" && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-stone-500 dark:text-slate-500">
-              Powered by {useAIStore.getState().enabledModels[0] || "AI"}
+              Powered by {useAIStore.getState().selectedModel || "AI"}
             </span>
           </div>
         )}

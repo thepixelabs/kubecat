@@ -75,6 +75,7 @@ export namespace config {
 	    CPUCostPerCoreHour: number;
 	    MemCostPerGBHour: number;
 	    Currency: string;
+	    OpenCostEndpoint: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CostConfig(source);
@@ -85,6 +86,7 @@ export namespace config {
 	        this.CPUCostPerCoreHour = source["CPUCostPerCoreHour"];
 	        this.MemCostPerGBHour = source["MemCostPerGBHour"];
 	        this.Currency = source["Currency"];
+	        this.OpenCostEndpoint = source["OpenCostEndpoint"];
 	    }
 	}
 
@@ -953,7 +955,7 @@ export namespace main {
 	        this.line = source["line"];
 	    }
 	}
-	export class NodeMetricsInfo {
+	export class NodeAllocationInfo {
 	    nodeName: string;
 	    podCount: number;
 	    cpuRequests: string;
@@ -968,7 +970,7 @@ export namespace main {
 	    memLimitPct: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new NodeMetricsInfo(source);
+	        return new NodeAllocationInfo(source);
 	    }
 	
 	    constructor(source: any = {}) {

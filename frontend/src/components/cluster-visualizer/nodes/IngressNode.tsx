@@ -48,7 +48,10 @@ function IngressNodeComponent({ data, selected }: IngressNodeProps) {
 
       <div className="flex flex-col items-center gap-1">
         <Globe size={16} className="text-purple-600 dark:text-purple-400" />
-        <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[80px]">
+        <span
+          className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[80px]"
+          title={data.label}
+        >
           {data.label}
         </span>
       </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ClusterVisualizer } from "./ClusterVisualizer";
 
 // Mock Wails bindings
@@ -35,10 +36,14 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ resolvedTheme: "dark" }),
 }));
 
-// Mock elkjs
-vi.mock("elkjs/lib/elk.bundled.js", () => ({
+// Mock elkjs. Exposes a hoisted `elkLayoutMock` so individual tests can seed
+// a layout throw and verify the error branch in the component surfaces it.
+const { elkLayoutMock } = vi.hoisted(() => ({
+  elkLayoutMock: vi.fn().mockResolvedValue({ children: [] }),
+}));
+vi.mock("elkjs/lib/elk.bundled", () => ({
   default: class ELK {
-    layout = vi.fn().mockResolvedValue({ children: [] });
+    layout = elkLayoutMock;
   },
 }));
 
@@ -62,6 +67,9 @@ describe("ClusterVisualizer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the shared ELK mock between tests so a prior throw doesn't bleed.
+    elkLayoutMock.mockReset();
+    elkLayoutMock.mockResolvedValue({ children: [] });
 
     // Default mock responses
     mockListResources.mockImplementation((kind: string) => {
@@ -264,7 +272,7 @@ describe("ClusterVisualizer", () => {
   });
 
   describe("namespace selection", () => {
-    it("should pass namespaces to toggle panel", async () => {
+    it("should render the namespace HUD selector", async () => {
       render(
         <ClusterVisualizer
           isConnected={true}
@@ -274,13 +282,12 @@ describe("ClusterVisualizer", () => {
       );
 
       await waitFor(() => {
-        // The namespace selector button should be present showing the default namespace
-        const dropdownButton = screen.getByText("default");
-        expect(dropdownButton).toBeInTheDocument();
+        // The HUD label is always visible
+        expect(screen.getByText("Namespace")).toBeInTheDocument();
       });
     });
 
-    it('should default to "default" namespace', async () => {
+    it('should default to "All Namespaces" so empty `default` ns users still see a populated graph', async () => {
       render(
         <ClusterVisualizer
           isConnected={true}
@@ -290,8 +297,11 @@ describe("ClusterVisualizer", () => {
       );
 
       await waitFor(() => {
-        const dropdownButton = screen.getByText("default");
-        expect(dropdownButton).toBeInTheDocument();
+        // With the default of "" the HUD trigger shows the "All Namespaces"
+        // label. There will be two matches once the dropdown opens (trigger +
+        // list item), but on mount the dropdown is closed so there is only
+        // one.
+        expect(screen.getByText("All Namespaces")).toBeInTheDocument();
       });
     });
   });
@@ -348,6 +358,150 @@ describe("ClusterVisualizer", () => {
         expect(screen.getByText("Ing→Svc")).toBeInTheDocument();
         expect(screen.getByText("Ctrl→Pod")).toBeInTheDocument();
       });
+    });
+  });
+
+  // ── Regression: graph-view default / NamespaceHud / ELK error branch ─────
+
+  describe("NamespaceHud (top-left always-visible selector)", () => {
+    it("renders the namespace HUD outside the draggable TogglePanel", async () => {
+      render(
+        <ClusterVisualizer
+          isConnected={true}
+          namespaces={namespaces}
+          onRefreshNamespaces={vi.fn()}
+        />
+      );
+
+      // Two "Namespace" labels would mean the selector was ALSO inside the
+      // TogglePanel — the fix removed it from there and left it only in the
+      // HUD. Guard against regression.
+      await waitFor(() => {
+        expect(screen.getAllByText("Namespace").length).toBe(1);
+      });
+    });
+
+    it("updates selectedNamespace when the user picks one from the HUD", async () => {
+      const user = userEvent.setup();
+      render(
+        <ClusterVisualizer
+          isConnected={true}
+          namespaces={namespaces}
+          onRefreshNamespaces={vi.fn()}
+        />
+      );
+
+      // Wait for initial fetch
+      await waitFor(() => {
+        expect(mockListResources).toHaveBeenCalled();
+      });
+
+      // Default is "All Namespaces" — so ListResources was called with "".
+      expect(mockListResources).toHaveBeenCalledWith("pods", "");
+
+      mockListResources.mockClear();
+
+      // Open the HUD and pick "kube-system".
+      const trigger = screen.getByText("All Namespaces").closest("button")!;
+      await user.click(trigger);
+      const option = await screen.findByText("kube-system");
+      await user.click(option);
+
+      // New fetches must target "kube-system".
+      await waitFor(
+        () => {
+          expect(mockListResources).toHaveBeenCalledWith("pods", "kube-system");
+        },
+        { timeout: 3000 }
+      );
+    });
+  });
+
+  describe("TogglePanel integration", () => {
+    it("does not contain the namespace selector (it was moved to the HUD)", async () => {
+      render(
+        <ClusterVisualizer
+          isConnected={true}
+          namespaces={namespaces}
+          onRefreshNamespaces={vi.fn()}
+        />
+      );
+
+      await waitFor(() => {
+        // TogglePanel only shows Resources / Infrastructure & Logic / Connections
+        expect(screen.getByText("Resources")).toBeInTheDocument();
+        expect(screen.getByText("Infrastructure & Logic")).toBeInTheDocument();
+        expect(screen.getByText("Connections")).toBeInTheDocument();
+      });
+
+      // If the old namespace dropdown leaked into TogglePanel we would see a
+      // second "Namespace" label here.
+      expect(screen.getAllByText("Namespace").length).toBe(1);
+    });
+  });
+
+  describe("ELK layout failures", () => {
+    it("surfaces the layout error into the UI error branch", async () => {
+      // Seed a pod so filteredNodes is non-empty (layout only runs otherwise).
+      mockListResources.mockImplementation((kind: string) => {
+        if (kind === "pods") {
+          return Promise.resolve([
+            {
+              kind: "Pod",
+              name: "p",
+              namespace: "default",
+              status: "Running",
+              node: "node-1",
+              ownerKind: "ReplicaSet",
+              ownerName: "rs",
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      mockGetClusterEdges.mockResolvedValue([]);
+      elkLayoutMock.mockRejectedValueOnce(new Error("boom"));
+
+      render(
+        <ClusterVisualizer
+          isConnected={true}
+          namespaces={namespaces}
+          onRefreshNamespaces={vi.fn()}
+        />
+      );
+
+      // Error branch renders "Graph layout failed: <message>" — regression pin
+      // for the fix that stopped swallowing ELK exceptions silently.
+      await waitFor(
+        () => {
+          expect(
+            screen.getByText(/Graph layout failed: boom/)
+          ).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+    });
+  });
+
+  describe("refresh button", () => {
+    it("invokes onRefreshNamespaces when clicked", async () => {
+      const onRefreshNamespaces = vi.fn();
+      const user = userEvent.setup();
+
+      render(
+        <ClusterVisualizer
+          isConnected={true}
+          namespaces={namespaces}
+          onRefreshNamespaces={onRefreshNamespaces}
+        />
+      );
+
+      const btn = await screen.findByTitle("Refresh");
+      await user.click(btn);
+
+      expect(onRefreshNamespaces).toHaveBeenCalled();
+      // Double-mute the unused import warning in builds
+      expect(fireEvent).toBeDefined();
     });
   });
 });

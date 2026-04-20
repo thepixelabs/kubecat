@@ -29,7 +29,7 @@ import { Navbar } from "./components/Navbar";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
 import { EpicsPopup } from "./components/EpicsPopup";
-import { SettingsModal } from "./components/SettingsModal";
+import { SettingsModal, type SettingsTab } from "./components/SettingsModal";
 import { HelpModal } from "./components/HelpModal";
 import { ExplorerView } from "./components/views/ExplorerView";
 import { LogsView } from "./components/views/LogsView";
@@ -69,6 +69,7 @@ function App() {
   const [connecting, setConnecting] = useState(false);
   const [selectedPod, setSelectedPod] = useState<SelectedPod | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab | undefined>(undefined);
   const [showHelp, setShowHelp] = useState(false);
   const [showEpics, setShowEpics] = useState(false);
   const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null);
@@ -223,6 +224,7 @@ function App() {
         <Sidebar
           navItems={navItems} activeView={activeView} sidebarCollapsed={sidebarCollapsed}
           isConnected={isConnected} appVersion={appVersion} contextQueueCount={contextQueueCount}
+          activeContext={activeContext}
           onNavigate={setActiveView} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <main className="flex-1 flex flex-col overflow-hidden">
@@ -238,7 +240,7 @@ function App() {
           <div className={`flex-1 overflow-auto ${activeView === "diff" ? "" : "p-6"}`}>
             <AnimatePresence mode="wait">
               <motion.div key={activeView} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.2 }} className="h-full">
-                {activeView === "dashboard" && <Dashboard isConnected={isConnected} onNavigate={(view) => setActiveView(view as View)} onOpenOnboarding={() => setShowOnboarding(true)} />}
+                {activeView === "dashboard" && <Dashboard isConnected={isConnected} onNavigate={(view) => setActiveView(view as View)} onOpenOnboarding={() => setShowOnboarding(true)} onSelectCluster={() => setShowContextMenu(true)} />}
                 {activeView === "explorer" && (
                   <ExplorerView
                     isConnected={isConnected} onSelectPod={(pod) => { setSelectedPod(pod); setActiveView("logs"); }}
@@ -271,16 +273,44 @@ function App() {
                   <RBACView isConnected={isConnected} namespaces={namespaces} activeContext={activeContext} />
                 )}
                 {activeView === "costs" && (
-                  <CostOverview activeContext={activeContext} namespace={explorerNamespace || namespaces[0] || "default"} />
+                  <CostOverview
+                    activeContext={activeContext}
+                    namespace={explorerNamespace || namespaces[0] || "default"}
+                    onOpenSettings={() => {
+                      setSettingsInitialTab("cost");
+                      setShowSettings(true);
+                    }}
+                  />
                 )}
-                {activeView === "query" && <ErrorBoundary componentName="AI Copilot"><AIQueryView /></ErrorBoundary>}
+                {activeView === "query" && (
+                  <ErrorBoundary componentName="AI Copilot">
+                    <AIQueryView
+                      onOpenSettings={() => {
+                        setSettingsInitialTab("ai");
+                        setShowSettings(true);
+                      }}
+                    />
+                  </ErrorBoundary>
+                )}
               </motion.div>
             </AnimatePresence>
           </div>
         </main>
       </div>
 
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} colorTheme={colorTheme} setColorTheme={setColorTheme} selectionColor={selectionColor} setSelectionColor={setSelectionColor} />
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => {
+          setShowSettings(false);
+          // Clear the deep-link so the next open defaults to Appearance again.
+          setSettingsInitialTab(undefined);
+        }}
+        colorTheme={colorTheme}
+        setColorTheme={setColorTheme}
+        selectionColor={selectionColor}
+        setSelectionColor={setSelectionColor}
+        initialTab={settingsInitialTab}
+      />
       <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} activeView={activeView} />
       <ErrorModal isOpen={errorModal !== null} onClose={() => setErrorModal(null)} title={errorModal?.title || "Error"} message={errorModal?.message || ""} />
       <EpicsPopup isOpen={showEpics} onClose={() => setShowEpics(false)} />

@@ -62,7 +62,10 @@ function ServiceNodeComponent({ data, selected }: ServiceNodeProps) {
 
       <div className="flex flex-col items-center gap-1">
         <Hexagon size={16} className="text-cyan-600 dark:text-cyan-400" />
-        <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[80px]">
+        <span
+          className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[80px]"
+          title={data.label}
+        >
           {data.label}
         </span>
         {data.serviceType && (

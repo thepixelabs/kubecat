@@ -20,6 +20,7 @@ import {
   CircleDot,
   GitBranch,
   Heart,
+  Plug,
   RefreshCw,
   Server,
   Shield,
@@ -41,6 +42,7 @@ import {
   TakeSnapshot,
 } from "../../wailsjs/go/main/App";
 import { GettingStartedCard } from "./onboarding/GettingStartedCard";
+import { useOnboardingStore } from "../stores/onboardingStore";
 
 // ---------------------------------------------------------------------------
 // Types (mirroring Go structs)
@@ -354,7 +356,10 @@ function ClusterHealthPanel({ clusters, loading }: { clusters: ClusterHealthInfo
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDot(c.status)}`} />
 
             {/* Context name */}
-            <span className="flex-1 text-xs font-mono font-medium text-stone-700 dark:text-slate-300 truncate">
+            <span
+              className="flex-1 text-xs font-mono font-medium text-stone-700 dark:text-slate-300 truncate"
+              title={c.context}
+            >
               {c.context}
             </span>
 
@@ -426,11 +431,17 @@ function EventsFeedPanel({ events, loading }: { events: TimelineEvent[]; loading
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.7)] flex-shrink-0 mt-1.5" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[10px] font-mono font-semibold text-stone-500 dark:text-slate-400 truncate">
+                      <span
+                        className="text-[10px] font-mono font-semibold text-stone-500 dark:text-slate-400 truncate"
+                        title={`${ev.kind}/${ev.name}`}
+                      >
                         {ev.kind}/{ev.name}
                       </span>
                       {ev.namespace && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-stone-100 dark:bg-slate-700/50 text-stone-400 dark:text-slate-500 font-mono flex-shrink-0">
+                        <span
+                          className="text-[9px] px-1 py-0.5 rounded bg-stone-100 dark:bg-slate-700/50 text-stone-400 dark:text-slate-500 font-mono flex-shrink-0"
+                          title={ev.namespace}
+                        >
                           {ev.namespace}
                         </span>
                       )}
@@ -496,10 +507,18 @@ function UnhealthyResourcesPanel({ pods, loading }: { pods: ResourceInfo[]; load
                 <div className="flex items-center gap-2.5">
                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot(pod.status)}`} />
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs font-mono font-medium text-stone-700 dark:text-slate-300 truncate block">
+                    <span
+                      className="text-xs font-mono font-medium text-stone-700 dark:text-slate-300 truncate block"
+                      title={`${pod.namespace}/${pod.name}`}
+                    >
                       {pod.name}
                     </span>
-                    <span className="text-[10px] text-stone-400 dark:text-slate-500">{pod.namespace}</span>
+                    <span
+                      className="text-[10px] text-stone-400 dark:text-slate-500"
+                      title={pod.namespace}
+                    >
+                      {pod.namespace}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {(pod.restarts ?? 0) > 0 && (
@@ -721,10 +740,18 @@ function GitOpsSyncPanel({ gitops, loading }: { gitops: GitOpsStatus | null; loa
                   {healthIcon(app.healthStatus)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs font-mono font-medium text-stone-700 dark:text-slate-300 truncate block">
+                  <span
+                    className="text-xs font-mono font-medium text-stone-700 dark:text-slate-300 truncate block"
+                    title={`${app.namespace}/${app.name}`}
+                  >
                     {app.name}
                   </span>
-                  <span className="text-[10px] text-stone-400 dark:text-slate-500">{app.namespace}</span>
+                  <span
+                    className="text-[10px] text-stone-400 dark:text-slate-500"
+                    title={app.namespace}
+                  >
+                    {app.namespace}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className={`text-[10px] font-medium ${statusColor(app.syncStatus)}`}>
@@ -837,7 +864,26 @@ function QuickActionsPanel({
 // Disconnected state
 // ---------------------------------------------------------------------------
 
-function DisconnectedState() {
+function DisconnectedState({ onSelectCluster }: { onSelectCluster?: () => void }) {
+  /**
+   * Open the Navbar cluster picker. Prefer an explicitly-passed handler; fall
+   * back to finding the Navbar's cluster button via its ARIA contract
+   * (`aria-haspopup="listbox"` on a <button>). This keeps the CTA functional
+   * without requiring App.tsx changes right now, while still allowing a
+   * cleaner wiring later.
+   */
+  const handleSelectCluster = () => {
+    if (onSelectCluster) {
+      onSelectCluster();
+      return;
+    }
+    const btn = document.querySelector<HTMLButtonElement>(
+      'header button[aria-haspopup="listbox"]'
+    );
+    btn?.click();
+    btn?.focus();
+  };
+
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4">
       <motion.div
@@ -857,12 +903,27 @@ function DisconnectedState() {
           No cluster connected
         </h2>
         <p className="text-sm text-stone-500 dark:text-slate-400 max-w-xs">
-          Select a cluster from the top-right selector to see operational data.
+          Pick a cluster to see live health, events, and GitOps status.
         </p>
       </div>
+      <button
+        type="button"
+        onClick={handleSelectCluster}
+        className="
+          inline-flex items-center gap-2 px-4 py-2 rounded-xl
+          text-sm font-semibold
+          bg-accent-500 hover:bg-accent-400 text-slate-900
+          shadow-lg shadow-accent-500/25 hover:shadow-accent-500/40
+          transition-all hover:scale-[1.02] active:scale-[0.99]
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500/50
+        "
+      >
+        <Plug size={14} />
+        Select cluster
+      </button>
       <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-slate-500">
         <Wifi size={13} />
-        <span>Use the cluster selector in the Navbar to connect</span>
+        <span>Or use the cluster selector in the top navbar</span>
       </div>
     </div>
   );
@@ -876,9 +937,12 @@ interface DashboardProps {
   isConnected: boolean;
   onNavigate?: (view: string) => void;
   onOpenOnboarding?: () => void;
+  /** Optional: hook to open the Navbar cluster picker. If omitted, the
+   *  disconnected-state CTA falls back to clicking the navbar button via DOM. */
+  onSelectCluster?: () => void;
 }
 
-export function Dashboard({ isConnected, onNavigate, onOpenOnboarding }: DashboardProps) {
+export function Dashboard({ isConnected, onNavigate, onOpenOnboarding, onSelectCluster }: DashboardProps) {
   // Data state
   const [clusters, setClusters] = useState<ClusterHealthInfo[]>([]);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -963,6 +1027,7 @@ export function Dashboard({ isConnected, onNavigate, onOpenOnboarding }: Dashboa
     try {
       const result = await GetSecuritySummary("");
       setSecurity(result as unknown as SecuritySummary);
+      useOnboardingStore.getState().markSecurityScanRun();
       addToast("Security scan complete", true);
     } catch {
       addToast("Security scan failed", false);
@@ -975,6 +1040,7 @@ export function Dashboard({ isConnected, onNavigate, onOpenOnboarding }: Dashboa
     setSnapshotLoading(true);
     try {
       await TakeSnapshot();
+      useOnboardingStore.getState().markSnapshotTaken();
       addToast("Snapshot taken successfully", true);
     } catch {
       addToast("Failed to take snapshot", false);
@@ -988,7 +1054,7 @@ export function Dashboard({ isConnected, onNavigate, onOpenOnboarding }: Dashboa
   };
 
   if (!isConnected) {
-    return <DisconnectedState />;
+    return <DisconnectedState onSelectCluster={onSelectCluster} />;
   }
 
   return (

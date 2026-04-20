@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { Box } from "lucide-react";
+import { middleTruncate } from "../../../utils/displayName";
 
 interface PodNodeData {
   label: string;
@@ -63,8 +64,14 @@ function PodNodeComponent({ data, selected }: PodNodeProps) {
       <div className="flex items-center gap-2 justify-center">
         <div className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
         <Box size={14} className="text-slate-500 dark:text-slate-400" />
-        <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[100px]">
-          {data.label}
+        {/* Middle-truncate preserves both the deployment prefix AND the pod-hash
+            suffix — e.g. `prod-api-7d4b8c9f6-xk2mq` → `prod-ap…xk2mq`. Full
+            name is always available on the wrapping title. */}
+        <span
+          className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[120px]"
+          title={data.label}
+        >
+          {middleTruncate(data.label, 18)}
         </span>
       </div>
 

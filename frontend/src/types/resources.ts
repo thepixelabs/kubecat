@@ -85,7 +85,7 @@ export interface ResourceInfo {
   roles?: string;
 }
 
-export interface NodeMetricsInfo {
+export interface NodeAllocationInfo {
   nodeName: string;
   podCount: number;
   cpuRequests: string;

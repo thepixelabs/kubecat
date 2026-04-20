@@ -58,6 +58,10 @@ export function DeleteResource(arg1, arg2, arg3) {
   return window['go']['main']['App']['DeleteResource'](arg1, arg2, arg3);
 }
 
+export function DetectCostBackend() {
+  return window['go']['main']['App']['DetectCostBackend']();
+}
+
 export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }
@@ -150,8 +154,8 @@ export function GetNetworkPolicyYAML(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetNetworkPolicyYAML'](arg1, arg2, arg3);
 }
 
-export function GetNodeMetrics() {
-  return window['go']['main']['App']['GetNodeMetrics']();
+export function GetNodeAllocation() {
+  return window['go']['main']['App']['GetNodeAllocation']();
 }
 
 export function GetRBACAnalysis() {

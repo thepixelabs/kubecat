@@ -57,7 +57,10 @@ function ServerNodeComponent({ data, selected }: ServerNodeProps) {
             size={16}
             className="text-indigo-600 dark:text-indigo-400"
           />
-          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[120px]">
+          <span
+            className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[120px]"
+            title={data.label}
+          >
             {data.label}
           </span>
         </div>

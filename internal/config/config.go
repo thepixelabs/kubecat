@@ -79,6 +79,12 @@ type CostConfig struct {
 	MemCostPerGBHour float64 `yaml:"memCostPerGBHour"`
 	// Currency is the display currency (default USD).
 	Currency string `yaml:"currency"`
+	// OpenCostEndpoint is the base URL of an OpenCost/Kubecost API (e.g.
+	// http://localhost:9003 via kubectl port-forward). When set, cost
+	// queries use OpenCost's /model/allocation endpoint for accurate
+	// billing; otherwise the heuristic (requests × default rates) is
+	// used. Leave empty to disable.
+	OpenCostEndpoint string `yaml:"openCostEndpoint"`
 }
 
 // AlertsConfig configures the proactive alert monitor.

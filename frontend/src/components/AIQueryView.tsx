@@ -17,6 +17,7 @@ import {
   Bot,
   Clipboard,
   ClipboardCheck,
+  Settings2,
 } from "lucide-react";
 import Markdown from "react-markdown";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -112,7 +113,16 @@ type AgentStep =
   | { kind: "approval_needed"; sessionId: string; toolCallId: string; tool: string; parameters: Record<string,string>; category: string; iteration: number }
   | { kind: "complete"; response: string };
 
-export function AIQueryView() {
+interface AIQueryViewProps {
+  /**
+   * Called when the user clicks the "Configure" affordance next to the model
+   * chip. Opens the global Settings modal on the AI Provider tab so users can
+   * edit API keys, endpoints, and enabled providers in one place.
+   */
+  onOpenSettings?: () => void;
+}
+
+export function AIQueryView({ onOpenSettings }: AIQueryViewProps = {}) {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
@@ -880,35 +890,14 @@ export function AIQueryView() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Model Selector */}
-            {availableModels.length > 0 && (
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <select
-                    value={selectedModel || ""}
-                    onChange={(e) => handleModelChange(e.target.value)}
-                    className="appearance-none bg-stone-100 dark:bg-slate-700 border border-stone-200 dark:border-slate-600 rounded-lg pl-3 pr-8 py-1.5 text-sm font-medium text-stone-700 dark:text-slate-200 hover:bg-stone-200 dark:hover:bg-slate-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 max-w-[200px]"
-                  >
-                    {availableModels.map((group) => (
-                      <optgroup
-                        key={group.providerId}
-                        label={group.providerName}
-                      >
-                        {group.models.map((model) => (
-                          <option
-                            key={`${group.providerId}-${model}`}
-                            value={model}
-                          >
-                            {model}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500 dark:text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-            )}
+            {/* Current-model chip — primary source of truth lives in Settings */}
+            <CurrentModelChip
+              availableModels={availableModels}
+              selectedModel={selectedModel}
+              onQuickSwitch={(m) => handleModelChange(m)}
+              onOpenSettings={onOpenSettings}
+            />
+
 
             {/* Agent Mode Toggle */}
             <button
@@ -1038,6 +1027,200 @@ export function AIQueryView() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── CurrentModelChip ─────────────────────────────────────────────────────────
+// Compact read-first affordance that shows the currently selected model and
+// offers two actions:
+//   1. Quick-switch to another already-enabled model via a small popover.
+//   2. "Configure" link that opens Settings on the AI Provider tab for full
+//      control (enable/disable providers, edit API keys, pick default model).
+//
+// The primary ownership of AI configuration lives in Settings now; this chip
+// intentionally does NOT expose API-key editing or provider enablement.
+
+interface CurrentModelChipProps {
+  availableModels: { providerId: string; providerName: string; models: string[] }[];
+  selectedModel: string | null;
+  onQuickSwitch: (model: string) => void;
+  onOpenSettings?: () => void;
+}
+
+function CurrentModelChip({
+  availableModels,
+  selectedModel,
+  onQuickSwitch,
+  onOpenSettings,
+}: CurrentModelChipProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Close popover on outside click / escape.
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  const totalModels = availableModels.reduce((n, g) => n + g.models.length, 0);
+
+  // Empty state — no enabled providers yet.
+  if (totalModels === 0) {
+    return (
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="
+          inline-flex items-center gap-1.5 px-3 py-1.5
+          text-xs font-medium
+          bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400
+          rounded-lg
+          hover:bg-amber-500/20
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50
+          transition-colors
+        "
+        title="No AI providers are enabled yet — open Settings to configure one"
+      >
+        <Settings2 size={12} aria-hidden="true" />
+        <span>Configure AI</span>
+      </button>
+    );
+  }
+
+  // Find provider name for the active model (for tooltip / label context).
+  const activeGroup = availableModels.find((g) =>
+    selectedModel ? g.models.includes(selectedModel) : false
+  );
+  const displayModel = selectedModel ?? "(none)";
+  const tooltip = activeGroup
+    ? `${activeGroup.providerName} — ${displayModel}`
+    : "Select a model";
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={tooltip}
+        className="
+          inline-flex items-center gap-1.5 max-w-[240px]
+          px-2.5 py-1.5 rounded-lg
+          bg-stone-100 dark:bg-slate-700/60
+          border border-stone-200 dark:border-slate-600
+          text-xs font-medium text-stone-700 dark:text-slate-200
+          hover:bg-stone-200 dark:hover:bg-slate-600
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50
+          transition-colors
+        "
+      >
+        <Sparkles size={12} className="text-purple-400 flex-shrink-0" aria-hidden="true" />
+        <span className="truncate font-mono">{displayModel}</span>
+        <ChevronDown
+          size={12}
+          className={`text-stone-500 dark:text-slate-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="
+            absolute right-0 top-full mt-1.5 z-30
+            w-64 max-h-80 overflow-y-auto
+            rounded-xl border border-stone-200 dark:border-slate-700
+            bg-white/95 dark:bg-slate-900/95 backdrop-blur-md
+            shadow-xl shadow-black/10
+            py-1
+          "
+        >
+          <div className="px-3 py-2 border-b border-stone-100 dark:border-slate-700/60">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-stone-400 dark:text-slate-500">
+              Quick switch
+            </p>
+          </div>
+
+          {availableModels.map((group) => (
+            <div key={group.providerId} className="py-1">
+              <p
+                className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:text-slate-500 truncate"
+                title={group.providerName}
+              >
+                {group.providerName}
+              </p>
+              {group.models.map((model) => {
+                const isActive = model === selectedModel;
+                return (
+                  <button
+                    key={`${group.providerId}-${model}`}
+                    role="menuitemradio"
+                    aria-checked={isActive}
+                    onClick={() => {
+                      onQuickSwitch(model);
+                      setOpen(false);
+                    }}
+                    title={model}
+                    className={`
+                      w-full flex items-center gap-2 px-3 py-1.5
+                      text-xs font-mono text-left
+                      hover:bg-stone-100 dark:hover:bg-slate-700/60
+                      focus-visible:outline-none focus-visible:bg-stone-100 dark:focus-visible:bg-slate-700/60
+                      transition-colors
+                      ${isActive ? "text-purple-500 dark:text-purple-400" : "text-stone-700 dark:text-slate-300"}
+                    `}
+                  >
+                    <Check
+                      size={12}
+                      className={`flex-shrink-0 ${isActive ? "opacity-100" : "opacity-0"}`}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{model}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+
+          {onOpenSettings && (
+            <div className="border-t border-stone-100 dark:border-slate-700/60 mt-1 pt-1">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onOpenSettings();
+                }}
+                className="
+                  w-full flex items-center gap-2 px-3 py-2
+                  text-xs font-medium
+                  text-stone-600 dark:text-slate-300
+                  hover:bg-stone-100 dark:hover:bg-slate-700/60
+                  focus-visible:outline-none focus-visible:bg-stone-100 dark:focus-visible:bg-slate-700/60
+                  transition-colors
+                "
+              >
+                <Settings2 size={12} aria-hidden="true" className="flex-shrink-0" />
+                <span>Manage providers & keys…</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

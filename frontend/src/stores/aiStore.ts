@@ -129,10 +129,7 @@ interface AIState {
 
   // Model selection
   selectedModel: string | null;
-  enabledModels: string[];
   setSelectedModel: (model: string) => void;
-  setEnabledModels: (models: string[]) => void;
-  toggleModelEnabled: (model: string) => void;
 }
 
 // ============================================================================
@@ -358,25 +355,9 @@ export const useAIStore = create<AIState>()(
       // Model Selection
       // ========================================================================
       selectedModel: null,
-      enabledModels: [],
 
       setSelectedModel: (model: string) => {
         set({ selectedModel: model });
-      },
-
-      setEnabledModels: (models: string[]) => {
-        set({ enabledModels: models });
-      },
-
-      toggleModelEnabled: (model: string) => {
-        set((state) => {
-          const isEnabled = state.enabledModels.includes(model);
-          return {
-            enabledModels: isEnabled
-              ? state.enabledModels.filter((m) => m !== model)
-              : [...state.enabledModels, model],
-          };
-        });
       },
     }),
     {
@@ -386,7 +367,6 @@ export const useAIStore = create<AIState>()(
         conversations: state.conversations,
         autopilotEnabled: state.autopilotEnabled,
         selectedModel: state.selectedModel,
-        enabledModels: state.enabledModels,
       }),
     }
   )

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DollarSign, RefreshCw, Loader2, TrendingUp, Cpu, MemoryStick } from "lucide-react";
+import { DollarSign, RefreshCw, Loader2, Settings, TrendingUp, Cpu, MemoryStick } from "lucide-react";
 import { GetNamespaceCostSummary } from "../../wailsjs/go/main/App";
 
 interface CostEstimate {
@@ -36,9 +36,11 @@ function Bar({ value, max }: { value: number; max: number }) {
 export function CostOverview({
   activeContext,
   namespace,
+  onOpenSettings,
 }: {
   activeContext: string;
   namespace: string;
+  onOpenSettings?: () => void;
 }) {
   const [summary, setSummary] = useState<NamespaceCostSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -152,8 +154,28 @@ export function CostOverview({
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-stone-400 dark:text-slate-500">
-        Estimates based on resource requests × pricing defaults. Enable OpenCost for accurate billing.
+      <p className="mt-2 text-xs text-stone-400 dark:text-slate-500 flex items-center gap-1.5 flex-wrap">
+        <span>Estimates based on resource requests × pricing defaults.</span>
+        {summary?.source !== "opencost" && (
+          <>
+            <span>
+              Set an{" "}
+              {onOpenSettings ? (
+                <button
+                  onClick={onOpenSettings}
+                  className="inline-flex items-center gap-0.5 text-accent-500 hover:text-accent-400 underline-offset-2 hover:underline transition-colors"
+                  title="Open Settings to configure OpenCost endpoint"
+                >
+                  <Settings className="w-3 h-3" />
+                  OpenCost endpoint in Settings
+                </button>
+              ) : (
+                <span className="text-stone-500 dark:text-slate-400">OpenCost endpoint in Settings</span>
+              )}{" "}
+              for authoritative billing.
+            </span>
+          </>
+        )}
       </p>
     </div>
   );

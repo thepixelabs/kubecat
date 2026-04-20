@@ -43,6 +43,20 @@ func NewClusterService() *ClusterService {
 	}
 }
 
+// NewClusterServiceWithManager constructs a ClusterService backed by a
+// caller-supplied Manager. Intended for tests that inject a fake Manager;
+// production code should use NewClusterService.
+func NewClusterServiceWithManager(mgr client.Manager) *ClusterService {
+	s := &ClusterService{
+		manager:     mgr,
+		cacheExpiry: 5 * time.Minute,
+	}
+	if mgr != nil {
+		s.activeContext = mgr.ActiveContext()
+	}
+	return s
+}
+
 // Manager returns the underlying cluster manager.
 func (s *ClusterService) Manager() client.Manager {
 	return s.manager

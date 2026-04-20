@@ -49,7 +49,6 @@ beforeEach(() => {
     activeConversationId: null,
     autopilotEnabled: false,
     selectedModel: null,
-    enabledModels: [],
   });
 
   // Default: no providers, no models
@@ -419,5 +418,209 @@ describe("input state", () => {
     fireEvent.change(textarea, { target: { value: "   " } });
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
     expect(mockAIQueryWithContext).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CurrentModelChip (provider/model selector popover in AIQueryView header)
+// ---------------------------------------------------------------------------
+
+describe("CurrentModelChip", () => {
+  it("renders the 'Configure AI' CTA when no providers have enabled models", async () => {
+    // No providers returned, no enabled models.
+    mockGetAvailableProviders.mockResolvedValue([]);
+    mockGetAISettings.mockResolvedValue({
+      enabled: false,
+      selectedProvider: "",
+      selectedModel: "",
+      providers: {},
+    });
+    const onOpenSettings = vi.fn();
+    render(<AIQueryView onOpenSettings={onOpenSettings} />);
+    const cta = await screen.findByRole("button", { name: /Configure AI/i });
+    expect(cta).toBeDefined();
+    fireEvent.click(cta);
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the current model truncated with title=<full-model-id>", async () => {
+    mockGetAvailableProviders.mockResolvedValue([
+      { id: "openai", name: "OpenAI", requiresApiKey: true, defaultEndpoint: "", defaultModel: "gpt-4o", models: [] },
+    ]);
+    const longModel = "openai/gpt-4o-2024-11-20-with-some-very-long-suffix";
+    mockGetAISettings.mockResolvedValue({
+      enabled: true,
+      selectedProvider: "openai",
+      selectedModel: longModel,
+      providers: {
+        openai: {
+          enabled: true,
+          apiKey: "sk-x",
+          endpoint: "https://api.openai.com/v1",
+          models: [longModel],
+        },
+      },
+    });
+    render(<AIQueryView />);
+    // The chip's button has title containing "OpenAI — <model>".
+    const chipBtn = await screen.findByTitle(new RegExp(longModel));
+    expect(chipBtn).toBeDefined();
+    // The displayed label uses truncate CSS; the raw text is still there.
+    expect(chipBtn.textContent).toContain(longModel);
+  });
+
+  it("opens the popover and lists providers grouped by name", async () => {
+    mockGetAvailableProviders.mockResolvedValue([
+      { id: "openai", name: "OpenAI", requiresApiKey: true, defaultEndpoint: "", defaultModel: "gpt-4o", models: [] },
+      { id: "ollama", name: "Ollama", requiresApiKey: false, defaultEndpoint: "", defaultModel: "llama3.2", models: [] },
+    ]);
+    mockGetAISettings.mockResolvedValue({
+      enabled: true,
+      selectedProvider: "ollama",
+      selectedModel: "llama3.2",
+      providers: {
+        openai: {
+          enabled: true,
+          apiKey: "sk-x",
+          endpoint: "",
+          models: ["gpt-4o-mini"],
+        },
+        ollama: {
+          enabled: true,
+          apiKey: "",
+          endpoint: "",
+          models: ["llama3.2"],
+        },
+      },
+    });
+    render(<AIQueryView />);
+    const chipBtn = await screen.findByTitle(/Ollama — llama3.2/);
+    fireEvent.click(chipBtn);
+
+    // Two provider group headings
+    expect(await screen.findByText("OpenAI")).toBeDefined();
+    expect(screen.getByText("Ollama")).toBeDefined();
+    // Two menuitemradios for the two models
+    const items = screen.getAllByRole("menuitemradio");
+    expect(items.length).toBe(2);
+  });
+
+  it("invokes onOpenSettings when 'Manage providers & keys…' is clicked", async () => {
+    mockGetAvailableProviders.mockResolvedValue([
+      { id: "ollama", name: "Ollama", requiresApiKey: false, defaultEndpoint: "", defaultModel: "llama3.2", models: [] },
+    ]);
+    mockGetAISettings.mockResolvedValue({
+      enabled: true,
+      selectedProvider: "ollama",
+      selectedModel: "llama3.2",
+      providers: {
+        ollama: {
+          enabled: true,
+          apiKey: "",
+          endpoint: "",
+          models: ["llama3.2"],
+        },
+      },
+    });
+    const onOpenSettings = vi.fn();
+    render(<AIQueryView onOpenSettings={onOpenSettings} />);
+    const chipBtn = await screen.findByTitle(/Ollama — llama3.2/);
+    fireEvent.click(chipBtn);
+    const manage = await screen.findByRole("menuitem", {
+      name: /Manage providers & keys/i,
+    });
+    fireEvent.click(manage);
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the popover when Escape is pressed", async () => {
+    mockGetAvailableProviders.mockResolvedValue([
+      { id: "ollama", name: "Ollama", requiresApiKey: false, defaultEndpoint: "", defaultModel: "llama3.2", models: [] },
+    ]);
+    mockGetAISettings.mockResolvedValue({
+      enabled: true,
+      selectedProvider: "ollama",
+      selectedModel: "llama3.2",
+      providers: {
+        ollama: {
+          enabled: true,
+          apiKey: "",
+          endpoint: "",
+          models: ["llama3.2"],
+        },
+      },
+    });
+    render(<AIQueryView />);
+    const chipBtn = await screen.findByTitle(/Ollama — llama3.2/);
+    fireEvent.click(chipBtn);
+    await screen.findByRole("menu");
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+  });
+
+  it("closes the popover on outside click", async () => {
+    mockGetAvailableProviders.mockResolvedValue([
+      { id: "ollama", name: "Ollama", requiresApiKey: false, defaultEndpoint: "", defaultModel: "llama3.2", models: [] },
+    ]);
+    mockGetAISettings.mockResolvedValue({
+      enabled: true,
+      selectedProvider: "ollama",
+      selectedModel: "llama3.2",
+      providers: {
+        ollama: {
+          enabled: true,
+          apiKey: "",
+          endpoint: "",
+          models: ["llama3.2"],
+        },
+      },
+    });
+    render(<AIQueryView />);
+    const chipBtn = await screen.findByTitle(/Ollama — llama3.2/);
+    fireEvent.click(chipBtn);
+    await screen.findByRole("menu");
+    // Simulate mousedown on document.body (outside the popover).
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+  });
+
+  it("clicking a model updates selectedModel and closes the popover (local provider, no consent gate)", async () => {
+    mockGetAvailableProviders.mockResolvedValue([
+      { id: "ollama", name: "Ollama", requiresApiKey: false, defaultEndpoint: "", defaultModel: "llama3.2", models: [] },
+    ]);
+    mockGetAISettings.mockResolvedValue({
+      enabled: true,
+      selectedProvider: "ollama",
+      selectedModel: "llama3.2",
+      providers: {
+        ollama: {
+          enabled: true,
+          apiKey: "",
+          endpoint: "",
+          models: ["llama3.2", "mistral"],
+        },
+      },
+    });
+    mockSaveAISettings.mockResolvedValue(undefined);
+    render(<AIQueryView />);
+    const chipBtn = await screen.findByTitle(/Ollama — llama3.2/);
+    fireEvent.click(chipBtn);
+    const mistral = await screen.findByRole("menuitemradio", { name: /mistral/ });
+    fireEvent.click(mistral);
+    // Popover should close.
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).toBeNull();
+    });
+    // SaveAISettings should have been called with the new model.
+    await waitFor(() => {
+      expect(mockSaveAISettings).toHaveBeenCalled();
+    });
+    const last = mockSaveAISettings.mock.calls.pop()![0];
+    expect(last.selectedModel).toBe("mistral");
+    expect(last.selectedProvider).toBe("ollama");
   });
 });

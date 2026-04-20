@@ -103,7 +103,10 @@ function ControllerNodeComponent({ data, selected }: ControllerNodeProps) {
 
       <div className="flex flex-col items-center gap-1">
         {getIcon()}
-        <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[80px]">
+        <span
+          className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate max-w-[80px]"
+          title={data.label}
+        >
           {data.label}
         </span>
         <span className="text-[10px] text-slate-500 dark:text-slate-400">

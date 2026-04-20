@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -6,99 +6,195 @@ import {
   MessageSquare,
   Shield,
   Clock,
-  GitCompare,
-  ChevronRight,
   Sparkles,
+  ChevronRight,
+  KeyRound,
 } from "lucide-react";
+import { useAIStore } from "../../stores/aiStore";
+import { useOnboardingStore } from "../../stores/onboardingStore";
 
-const GETTING_STARTED_KEY = "kubecat-getting-started-dismissed";
+// ---------------------------------------------------------------------------
+// Legacy dismiss migration
+// ---------------------------------------------------------------------------
+// The old card stored its dismissed flag under this key in localStorage. Read
+// it once on module load and migrate into the onboarding store, then delete —
+// that way users who dismissed before this refactor stay dismissed.
+const LEGACY_DISMISS_KEY = "kubecat-getting-started-dismissed";
+try {
+  if (
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem(LEGACY_DISMISS_KEY) === "true"
+  ) {
+    useOnboardingStore.getState().dismiss();
+    localStorage.removeItem(LEGACY_DISMISS_KEY);
+  }
+} catch {
+  // localStorage unavailable (SSR, privacy mode) — fine, nothing to migrate.
+}
 
+// ---------------------------------------------------------------------------
+// Public hook (kept for backwards compat with any outside caller)
+// ---------------------------------------------------------------------------
 export function useGettingStartedDismissed() {
-  const [dismissed, setDismissed] = useState(() =>
-    localStorage.getItem(GETTING_STARTED_KEY) === "true"
-  );
-
-  const dismiss = () => {
-    localStorage.setItem(GETTING_STARTED_KEY, "true");
-    setDismissed(true);
-  };
-
+  const dismissed = useOnboardingStore((s) => s.dismissed);
+  const dismiss = useOnboardingStore((s) => s.dismiss);
   return { dismissed, dismiss };
 }
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 interface GettingStartedCardProps {
   isConnected: boolean;
   onOpenOnboarding?: () => void;
   onNavigate?: (view: string) => void;
 }
 
-const QUICK_ACTIONS = [
+type Flags = {
+  connected: boolean;
+  aiConfigured: boolean;
+  aiQuerySent: boolean;
+  snapshotTaken: boolean;
+  securityScanRun: boolean;
+};
+
+type StepView = "query" | "security" | "timeline" | null;
+
+interface Step {
+  id: keyof Flags;
+  icon: typeof Plug;
+  label: string;
+  description: string;
+  /** Where to send the user when they click. `null` → open the wizard. */
+  view: StepView;
+  accentClass: string;
+  bgClass: string;
+  borderClass: string;
+}
+
+// ---------------------------------------------------------------------------
+// Step definitions — done predicates live outside, keyed by step id, so the
+// card stays declarative and predicates can evolve without re-arranging JSX.
+// ---------------------------------------------------------------------------
+const STEPS: Step[] = [
   {
+    id: "connected",
     icon: Plug,
     label: "Connect a cluster",
     description: "Select a kubeconfig context from the header",
-    done: (_isConnected: boolean) => _isConnected,
     view: null,
     accentClass: "text-accent-400",
     bgClass: "bg-accent-500/10",
     borderClass: "border-accent-500/20",
   },
   {
+    id: "aiConfigured",
+    icon: KeyRound,
+    label: "Configure an AI model",
+    description: "Pick a provider and model in Settings",
+    view: null,
+    accentClass: "text-fuchsia-400",
+    bgClass: "bg-fuchsia-500/10",
+    borderClass: "border-fuchsia-500/20",
+  },
+  {
+    id: "aiQuerySent",
     icon: MessageSquare,
     label: "Run your first AI query",
     description: "Ask anything about your cluster in plain English",
-    done: () => false,
     view: "query",
     accentClass: "text-purple-400",
     bgClass: "bg-purple-500/10",
     borderClass: "border-purple-500/20",
   },
   {
-    icon: Shield,
-    label: "Security scan",
-    description: "Audit RBAC and misconfigurations with one click",
-    done: () => false,
-    view: "security",
-    accentClass: "text-amber-400",
-    bgClass: "bg-amber-500/10",
-    borderClass: "border-amber-500/20",
-  },
-  {
+    id: "snapshotTaken",
     icon: Clock,
-    label: "Explore the timeline",
-    description: "Time-travel through cluster history with snapshots",
-    done: () => false,
+    label: "Take your first snapshot",
+    description: "Capture cluster state for time-travel diffs",
     view: "timeline",
     accentClass: "text-cyan-400",
     bgClass: "bg-cyan-500/10",
     borderClass: "border-cyan-500/20",
   },
   {
-    icon: GitCompare,
-    label: "Compare clusters",
-    description: "Diff two clusters or snapshots side by side",
-    done: () => false,
-    view: "diff",
-    accentClass: "text-green-400",
-    bgClass: "bg-green-500/10",
-    borderClass: "border-green-500/20",
+    id: "securityScanRun",
+    icon: Shield,
+    label: "Run a security scan",
+    description: "Audit RBAC and misconfigurations with one click",
+    view: "security",
+    accentClass: "text-amber-400",
+    bgClass: "bg-amber-500/10",
+    borderClass: "border-amber-500/20",
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export function GettingStartedCard({
   isConnected,
   onOpenOnboarding,
   onNavigate,
 }: GettingStartedCardProps) {
-  const { dismissed, dismiss } = useGettingStartedDismissed();
+  const dismissed = useOnboardingStore((s) => s.dismissed);
+  const dismiss = useOnboardingStore((s) => s.dismiss);
+
+  const everConnected = useOnboardingStore((s) => s.everConnected);
+  const aiQuerySentFlag = useOnboardingStore((s) => s.aiQuerySent);
+  const snapshotTaken = useOnboardingStore((s) => s.snapshotTaken);
+  const securityScanRun = useOnboardingStore((s) => s.securityScanRun);
+
+  const markEverConnected = useOnboardingStore((s) => s.markEverConnected);
+  const markAIQuerySent = useOnboardingStore((s) => s.markAIQuerySent);
+
+  const selectedModel = useAIStore((s) => s.selectedModel);
+  const conversations = useAIStore((s) => s.conversations);
+
+  // Latch "ever connected" the first time we observe a live connection.
+  useEffect(() => {
+    if (isConnected) markEverConnected();
+  }, [isConnected, markEverConnected]);
+
+  // Derive "AI query sent" from existing conversation state, then latch it so
+  // the flag survives a conversation wipe. This avoids needing to edit
+  // AIQueryView.tsx (owned by another engineer). If any future query pipeline
+  // bypasses `conversations`, set `markAIQuerySent()` at that site directly.
+  const derivedAIQuerySent = useMemo(
+    () =>
+      conversations.some((c) =>
+        c.messages.some((m) => m.role === "user")
+      ),
+    [conversations]
+  );
+  useEffect(() => {
+    if (derivedAIQuerySent) markAIQuerySent();
+  }, [derivedAIQuerySent, markAIQuerySent]);
+
+  const flags: Flags = {
+    connected: isConnected || everConnected,
+    aiConfigured: !!selectedModel,
+    aiQuerySent: aiQuerySentFlag || derivedAIQuerySent,
+    snapshotTaken,
+    securityScanRun,
+  };
+
   const [hovered, setHovered] = useState<number | null>(null);
 
-  const completedCount = QUICK_ACTIONS.filter((a) => a.done(isConnected)).length;
-  const progressPct = (completedCount / QUICK_ACTIONS.length) * 100;
+  const completedCount = STEPS.reduce(
+    (n, step) => (flags[step.id] ? n + 1 : n),
+    0
+  );
+  const progressPct = (completedCount / STEPS.length) * 100;
+  const allDone = completedCount === STEPS.length;
+
+  // Auto-hide once everything is done. Separate from explicit dismiss so the
+  // card can re-appear if a future step is added and its flag is still false.
+  const hidden = dismissed || allDone;
 
   return (
     <AnimatePresence>
-      {!dismissed && (
+      {!hidden && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -147,7 +243,7 @@ export function GettingStartedCard({
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-500">Progress</span>
                 <span className="text-slate-400 font-medium">
-                  {completedCount}/{QUICK_ACTIONS.length}
+                  {completedCount}/{STEPS.length}
                 </span>
               </div>
               <div className="h-1.5 rounded-full bg-slate-700/60 overflow-hidden">
@@ -162,20 +258,21 @@ export function GettingStartedCard({
 
             {/* Action list */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
-              {QUICK_ACTIONS.map((action, i) => {
-                const Icon = action.icon;
-                const isDone = action.done(isConnected);
+              {STEPS.map((step, i) => {
+                const Icon = step.icon;
+                const isDone = flags[step.id];
                 const isHovered = hovered === i;
-                const clickable = !isDone && (action.view || onOpenOnboarding);
+                const clickable =
+                  !isDone && (step.view !== null || onOpenOnboarding);
 
                 return (
                   <motion.button
-                    key={action.label}
+                    key={step.id}
                     onClick={() => {
                       if (isDone) return;
-                      if (action.view && onNavigate) {
-                        onNavigate(action.view);
-                      } else if (!action.view && onOpenOnboarding) {
+                      if (step.view && onNavigate) {
+                        onNavigate(step.view);
+                      } else if (step.view === null && onOpenOnboarding) {
                         onOpenOnboarding();
                       }
                     }}
@@ -189,7 +286,7 @@ export function GettingStartedCard({
                       ${
                         isDone
                           ? "border-emerald-500/30 bg-emerald-500/5 opacity-70"
-                          : `${action.bgClass} ${action.borderClass} hover:border-opacity-60`
+                          : `${step.bgClass} ${step.borderClass} hover:border-opacity-60`
                       }
                       ${clickable ? "cursor-pointer" : "cursor-default"}
                     `}
@@ -211,7 +308,7 @@ export function GettingStartedCard({
 
                     <Icon
                       size={16}
-                      className={isDone ? "text-emerald-400" : action.accentClass}
+                      className={isDone ? "text-emerald-400" : step.accentClass}
                     />
 
                     <div className="space-y-0.5">
@@ -220,17 +317,17 @@ export function GettingStartedCard({
                           isDone ? "text-slate-400 line-through" : "text-slate-200"
                         }`}
                       >
-                        {action.label}
+                        {step.label}
                       </p>
                       <p className="text-[11px] text-slate-500 leading-snug">
-                        {action.description}
+                        {step.description}
                       </p>
                     </div>
 
                     {!isDone && clickable && isHovered && (
                       <ChevronRight
                         size={12}
-                        className={`${action.accentClass} self-end`}
+                        className={`${step.accentClass} self-end`}
                       />
                     )}
                   </motion.button>

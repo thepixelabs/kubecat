@@ -20,7 +20,10 @@ const NamespaceNodeComponent = ({
             The Layout handles positioning. */}
       <div className="absolute top-0 left-0 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-br-lg border-b border-r border-slate-200 dark:border-slate-700 flex items-center gap-2">
         <Box size={14} className="text-slate-500" />
-        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <span
+          className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[180px]"
+          title={data.label}
+        >
           {data.label}
         </span>
       </div>

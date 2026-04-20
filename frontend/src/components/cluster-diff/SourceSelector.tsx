@@ -69,7 +69,8 @@ export function SourceSelector({
         <button
           onClick={() => !readOnly && setContextOpen(!contextOpen)}
           disabled={readOnly}
-          className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-stone-50 dark:bg-slate-900 
+          title={value.context || "Select cluster"}
+          className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-stone-50 dark:bg-slate-900
                      border border-stone-200 dark:border-slate-700 rounded-md transition-colors ${
                        readOnly
                          ? "opacity-80 cursor-default"
@@ -78,7 +79,10 @@ export function SourceSelector({
         >
           <div className="flex items-center gap-2 min-w-0">
             <Server className="w-4 h-4 text-accent-500 flex-shrink-0" />
-            <span className="truncate text-sm text-stone-700 dark:text-slate-200">
+            <span
+              className="truncate text-sm text-stone-700 dark:text-slate-200"
+              title={value.context || "Select cluster"}
+            >
               {value.context || "Select cluster..."}
             </span>
           </div>
@@ -109,15 +113,16 @@ export function SourceSelector({
                   <button
                     key={ctx}
                     onClick={() => handleContextChange(ctx)}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-sm 
+                    title={ctx}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm
                                hover:bg-stone-100 dark:hover:bg-slate-800 transition-colors ${
                                  value.context === ctx
                                    ? "text-accent-600 dark:text-accent-400 bg-accent-50 dark:bg-accent-500/10"
                                    : "text-stone-700 dark:text-slate-300"
                                }`}
                   >
-                    <span className="truncate">{ctx}</span>
-                    {value.context === ctx && <Check className="w-4 h-4" />}
+                    <span className="truncate" title={ctx}>{ctx}</span>
+                    {value.context === ctx && <Check className="w-4 h-4 flex-shrink-0" />}
                   </button>
                 ))
               )}

@@ -281,6 +281,39 @@ func (a *App) getRolePermissions(ctx context.Context, cl client.ClusterClient, k
 	return permissions
 }
 
+// dangerousVerbs maps a write/destructive verb to a human-readable description.
+// A permission is flagged as dangerous when the verb appears here AND the
+// resource is either dangerous itself or a wildcard. Read-only verbs (get,
+// list, watch) are considered dangerous only on sensitive resources (e.g.
+// secrets) — see dangerousResources below.
+var dangerousVerbs = map[string]string{
+	"*":                "wildcard access (all verbs)",
+	"delete":           "can delete resources",
+	"deletecollection": "can delete multiple resources at once",
+	"create":           "can create resources",
+	"patch":            "can patch/modify resources",
+	"update":           "can update resources",
+	"impersonate":      "can impersonate other users",
+	"escalate":         "can escalate role permissions",
+	"bind":             "can bind roles to subjects",
+}
+
+// dangerousResources maps a sensitive resource to a description. Read access
+// to any of these is itself a finding.
+var dangerousResources = map[string]string{
+	"*":                     "access to all resources",
+	"secrets":               "access to secrets",
+	"pods/exec":             "can exec into pods",
+	"pods/attach":           "can attach to running pods",
+	"pods/portforward":      "can port-forward pod traffic",
+	"serviceaccounts":       "can manage service accounts",
+	"serviceaccounts/token": "can mint service account tokens",
+	"clusterroles":          "can manage cluster roles",
+	"clusterrolebindings":   "can manage cluster role bindings",
+	"roles":                 "can manage roles",
+	"rolebindings":          "can manage role bindings",
+}
+
 func (a *App) checkDangerousAccess(summary *RBACSummary, binding *RBACBinding) {
 	// Skip system bindings unless they grant access to non-system subjects
 	isSystemBinding := strings.HasPrefix(binding.Name, "system:") ||
@@ -289,101 +322,88 @@ func (a *App) checkDangerousAccess(summary *RBACSummary, binding *RBACBinding) {
 		binding.Namespace == "kube-public" ||
 		binding.Namespace == "kube-node-lease"
 
-	dangerousVerbs := map[string]string{
-		"*":                "wildcard access (all verbs)",
-		"delete":           "can delete resources",
-		"deletecollection": "can delete multiple resources at once",
-		"create":           "can create resources",
-		"patch":            "can patch/modify resources",
-		"update":           "can update resources",
+	// Short-circuit: cluster-admin bound to a non-system subject is always
+	// the highest-severity finding. Report it once per subject and return;
+	// there's no value in also listing every individual (verb,resource)
+	// tuple under cluster-admin.
+	if binding.RoleName == "cluster-admin" {
+		for _, subject := range binding.Subjects {
+			if a.isSystemSubject(subject) && isSystemBinding {
+				continue
+			}
+			// system:masters is expected to carry cluster-admin.
+			if subject.Kind == "Group" && subject.Name == "system:masters" {
+				continue
+			}
+			summary.DangerousAccess = append(summary.DangerousAccess, DangerousAccessInfo{
+				Subject:     subject,
+				Reason:      "Has cluster-admin or equivalent privileges",
+				Binding:     binding.Name,
+				Namespace:   binding.Namespace,
+				Permissions: []string{"cluster-admin"},
+			})
+		}
+		return
 	}
 
-	dangerousResources := map[string]string{
-		"*":                   "access to all resources",
-		"secrets":             "access to secrets",
-		"pods/exec":           "can exec into pods",
-		"serviceaccounts":     "can manage service accounts",
-		"clusterroles":        "can manage cluster roles",
-		"clusterrolebindings": "can manage cluster role bindings",
-		"roles":               "can manage roles",
-		"rolebindings":        "can manage role bindings",
-	}
+	// For every (verb, resource) tuple, emit a finding if either the verb
+	// or the resource matches a dangerous entry. We dedupe per
+	// (subject, binding, verb, resource) so a role with overlapping rules
+	// doesn't flood the report.
+	type seenKey struct{ subjKey, verb, resource string }
+	seen := map[seenKey]bool{}
 
 	for _, perm := range binding.Permissions {
 		for _, verb := range perm.Verbs {
 			for _, resource := range perm.Resources {
-				// Check for dangerous verbs
-				if reason, ok := dangerousVerbs[verb]; ok && verb != "*" {
-					_ = reason
-					// reasons = append(reasons, reason)
+				verbReason, verbDangerous := dangerousVerbs[verb]
+				resReason, resDangerous := dangerousResources[resource]
+
+				// Special case: read verbs on sensitive resources are
+				// dangerous even though the verb itself isn't.
+				readOnSensitive := resDangerous && (verb == "get" || verb == "list" || verb == "watch")
+
+				// A permission is worth reporting when:
+				//   - the verb is dangerous AND the resource is dangerous (or wildcard), OR
+				//   - a read verb touches a sensitive resource.
+				if !(verbDangerous && resDangerous) && !readOnSensitive {
+					continue
 				}
 
-				// Check for dangerous resources
-				if reason, ok := dangerousResources[resource]; ok {
-					_ = reason
-					// reasons = append(reasons, reason)
+				// Build the human reason from whichever side(s) matched.
+				var parts []string
+				if verbDangerous {
+					parts = append(parts, verbReason)
 				}
+				if resDangerous {
+					parts = append(parts, resReason)
+				}
+				if readOnSensitive && !verbDangerous {
+					parts = append(parts, fmt.Sprintf("can %s %s", verb, resource))
+				}
+				reason := strings.Join(parts, "; ")
 
-				// Check for wildcard resources with dangerous verbs
-				if resource == "*" && (verb == "delete" || verb == "patch" || verb == "update" || verb == "*") {
-					for _, subject := range binding.Subjects {
-						// Skip system subjects
-						if a.isSystemSubject(subject) {
-							continue
-						}
-						// If binding is system binding and subject is valid (e.g. user unbound to system role), we might want to show it
-						// But usually system bindings bind system subjects.
-						// The main case we want to catch is "cluster-admin" bound to a user.
-
-						info := DangerousAccessInfo{
-							Subject:     subject,
-							Reason:      fmt.Sprintf("Has %s on all resources", verb),
-							Binding:     binding.Name,
-							Namespace:   binding.Namespace,
-							Permissions: []string{fmt.Sprintf("%s %s", verb, resource)},
-						}
-						summary.DangerousAccess = append(summary.DangerousAccess, info)
+				for _, subject := range binding.Subjects {
+					if a.isSystemSubject(subject) && isSystemBinding {
+						continue
 					}
-				}
-
-				// Check for secrets access
-				if resource == "secrets" && (verb == "get" || verb == "list" || verb == "*") {
-					for _, subject := range binding.Subjects {
-						if a.isSystemSubject(subject) {
-							continue
-						}
-						info := DangerousAccessInfo{
-							Subject:     subject,
-							Reason:      "Can read secrets",
-							Binding:     binding.Name,
-							Namespace:   binding.Namespace,
-							Permissions: []string{fmt.Sprintf("%s %s", verb, resource)},
-						}
-						summary.DangerousAccess = append(summary.DangerousAccess, info)
+					if subject.Kind == "Group" && subject.Name == "system:masters" {
+						continue
 					}
-				}
-
-				// Check for cluster-admin like access
-				if binding.RoleName == "cluster-admin" || (verb == "*" && resource == "*") {
-					for _, subject := range binding.Subjects {
-						if a.isSystemSubject(subject) && isSystemBinding {
-							continue
-						}
-
-						// Special case: system:masters group is expected to have cluster-admin
-						if subject.Kind == "Group" && subject.Name == "system:masters" {
-							continue
-						}
-
-						info := DangerousAccessInfo{
-							Subject:     subject,
-							Reason:      "Has cluster-admin or equivalent privileges",
-							Binding:     binding.Name,
-							Namespace:   binding.Namespace,
-							Permissions: []string{"cluster-admin equivalent"},
-						}
-						summary.DangerousAccess = append(summary.DangerousAccess, info)
+					subjKey := subject.Kind + ":" + subject.Namespace + "/" + subject.Name
+					k := seenKey{subjKey, verb, resource}
+					if seen[k] {
+						continue
 					}
+					seen[k] = true
+
+					summary.DangerousAccess = append(summary.DangerousAccess, DangerousAccessInfo{
+						Subject:     subject,
+						Reason:      reason,
+						Binding:     binding.Name,
+						Namespace:   binding.Namespace,
+						Permissions: []string{fmt.Sprintf("%s %s", verb, resource)},
+					})
 				}
 			}
 		}

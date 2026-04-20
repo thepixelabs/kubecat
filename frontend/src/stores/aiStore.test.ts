@@ -20,7 +20,6 @@ beforeEach(() => {
     activeConversationId: null,
     autopilotEnabled: false,
     selectedModel: null,
-    enabledModels: [],
   });
 });
 
@@ -441,45 +440,143 @@ describe("setSelectedModel", () => {
   });
 });
 
-describe("setEnabledModels", () => {
-  it("replaces the full enabledModels list", () => {
-    useAIStore.getState().setEnabledModels(["llama3.2", "gemma2"]);
-    expect(useAIStore.getState().enabledModels).toEqual(["llama3.2", "gemma2"]);
-  });
-});
-
-describe("toggleModelEnabled", () => {
-  it("adds model when not present", () => {
-    useAIStore.getState().toggleModelEnabled("gpt-4o");
-    expect(useAIStore.getState().enabledModels).toContain("gpt-4o");
-  });
-
-  it("removes model when already present", () => {
-    useAIStore.getState().setEnabledModels(["gpt-4o", "claude-3"]);
-    useAIStore.getState().toggleModelEnabled("gpt-4o");
-    expect(useAIStore.getState().enabledModels).not.toContain("gpt-4o");
-    expect(useAIStore.getState().enabledModels).toContain("claude-3");
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Persistence contract — partialize excludes contextQueue
 // ---------------------------------------------------------------------------
 
 describe("persistence partialize", () => {
   it("contextQueue is excluded from persisted state", () => {
-    // The partialize function includes conversations, autopilotEnabled,
-    // selectedModel, and enabledModels but NOT contextQueue.
-    // We verify by checking the store persists the right fields.
-    // Since we're testing the store directly, we inspect the partialize logic
-    // by checking that contextQueue is not part of what's explicitly listed.
+    // The partialize function includes conversations, autopilotEnabled and
+    // selectedModel but NOT contextQueue.
     const state = useAIStore.getState();
     // contextQueue should be present in state but is intentionally ephemeral
     expect(Array.isArray(state.contextQueue)).toBe(true);
-    // conversations, autopilotEnabled, selectedModel, enabledModels ARE persisted
+    // conversations, autopilotEnabled, selectedModel ARE persisted
     expect(typeof state.autopilotEnabled).toBe("boolean");
     expect(Array.isArray(state.conversations)).toBe(true);
-    expect(Array.isArray(state.enabledModels)).toBe(true);
+    expect(state.selectedModel === null || typeof state.selectedModel === "string").toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases — no-op branches for pin/unpin/update when targets missing
+// ---------------------------------------------------------------------------
+
+describe("pin/unpin on unknown conversation id", () => {
+  it("pinConversation is a no-op and leaves conversations untouched", () => {
+    const id = useAIStore.getState().createConversation("dev");
+    useAIStore.getState().pinConversation("ghost-id");
+    expect(getConversation(id)?.pinned).toBe(false);
+    expect(useAIStore.getState().conversations).toHaveLength(1);
+  });
+
+  it("unpinConversation is a no-op for an unknown id", () => {
+    const id = useAIStore.getState().createConversation("dev");
+    useAIStore.getState().pinConversation(id);
+    useAIStore.getState().unpinConversation("ghost-id");
+    // Original pin state must survive
+    expect(getConversation(id)?.pinned).toBe(true);
+  });
+});
+
+describe("updateMessage on missing targets", () => {
+  it("is a no-op when conversationId does not exist", () => {
+    useAIStore.getState().createConversation("dev");
+    const before = JSON.stringify(useAIStore.getState().conversations);
+    useAIStore.getState().updateMessage("ghost-conv", "ghost-msg", {
+      content: "x",
+    });
+    expect(JSON.stringify(useAIStore.getState().conversations)).toBe(before);
+  });
+
+  it("is a no-op when messageId does not exist within the conversation", () => {
+    const convId = useAIStore.getState().createConversation("dev");
+    useAIStore.getState().addMessage(convId, { role: "user", content: "hi" });
+    const before = getConversation(convId)?.messages.map((m) => m.content);
+    useAIStore.getState().updateMessage(convId, "ghost-msg", { content: "x" });
+    const after = getConversation(convId)?.messages.map((m) => m.content);
+    expect(after).toEqual(before);
+  });
+});
+
+describe("updateCommandStatus on missing targets", () => {
+  it("is a no-op when message has no response block", () => {
+    const convId = useAIStore.getState().createConversation("dev");
+    const msgId = useAIStore.getState().addMessage(convId, {
+      role: "user",
+      content: "no response attached",
+    });
+    // Must not throw — there's no `response` field to walk
+    expect(() =>
+      useAIStore
+        .getState()
+        .updateCommandStatus(convId, msgId, "cmd-1", "completed")
+    ).not.toThrow();
+  });
+
+  it("is a no-op when conversationId does not exist", () => {
+    expect(() =>
+      useAIStore
+        .getState()
+        .updateCommandStatus("ghost-conv", "ghost-msg", "cmd-1", "completed")
+    ).not.toThrow();
+  });
+
+  it("leaves other commands untouched when only one matches", () => {
+    const convId = useAIStore.getState().createConversation("dev");
+    const msgId = useAIStore.getState().addMessage(convId, {
+      role: "assistant",
+      content: "run both",
+      response: {
+        commands: [
+          { id: "a", command: "kubectl get pods", status: "pending" },
+          { id: "b", command: "kubectl get nodes", status: "pending" },
+        ],
+        insights: [],
+        visualizations: [],
+        followUpSuggestions: [],
+      },
+    });
+
+    useAIStore
+      .getState()
+      .updateCommandStatus(convId, msgId, "a", "completed", "ok");
+
+    const cmds = getConversation(convId)?.messages.find((m) => m.id === msgId)
+      ?.response?.commands;
+    expect(cmds?.find((c) => c.id === "a")?.status).toBe("completed");
+    expect(cmds?.find((c) => c.id === "b")?.status).toBe("pending");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Persistence — partialize contract + rehydration
+// ---------------------------------------------------------------------------
+
+describe("persistence (partialize)", () => {
+  const PERSIST_KEY = "nexus-ai-storage";
+
+  it("persists conversations, autopilotEnabled, selectedModel; omits contextQueue and activeConversationId", () => {
+    useAIStore.getState().createConversation("prod");
+    useAIStore.getState().setAutopilotEnabled(true);
+    useAIStore.getState().setSelectedModel("claude-3");
+    useAIStore.getState().addToContext({
+      id: "ctx1",
+      type: "pod",
+      name: "p",
+      namespace: "default",
+      cluster: "c",
+      addedAt: new Date(),
+    });
+
+    const raw = window.localStorage.getItem(PERSIST_KEY);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw as string);
+    expect(parsed.state).toHaveProperty("conversations");
+    expect(parsed.state.autopilotEnabled).toBe(true);
+    expect(parsed.state.selectedModel).toBe("claude-3");
+    expect(parsed.state).not.toHaveProperty("contextQueue");
+    expect(parsed.state).not.toHaveProperty("activeConversationId");
   });
 });
 
