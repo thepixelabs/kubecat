@@ -44,7 +44,7 @@ func TestValidate_Ollama_LoopbackAllowed(t *testing.T) {
 	loopbackURLs := []string{
 		"http://localhost:11434",
 		"http://127.0.0.1:11434",
-		"http://::1:11434",
+		"http://[::1]:11434", // RFC 3986 — IPv6 in URL must be bracketed
 	}
 	for _, u := range loopbackURLs {
 		t.Run(u, func(t *testing.T) {
@@ -65,6 +65,62 @@ func TestValidate_Ollama_NonLoopback_Rejected(t *testing.T) {
 		t.Run(u, func(t *testing.T) {
 			if err := Validate(u, "ollama"); err == nil {
 				t.Errorf("Validate(%q, ollama) = nil, want error (non-loopback must be rejected)", u)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// IPv6 loopback — bracketed form (RFC 3986) and adjacent edge cases.
+// Pins behavior against url.Parse leniency drift across Go versions.
+// ---------------------------------------------------------------------------
+
+func TestValidate_Ollama_BracketedIPv6Loopback_Allowed(t *testing.T) {
+	loopbackIPv6URLs := []string{
+		"http://[::1]:11434",
+		"http://[::1]:11434/api",
+		"http://[0:0:0:0:0:0:0:1]:11434", // full-form ::1
+	}
+	for _, u := range loopbackIPv6URLs {
+		t.Run(u, func(t *testing.T) {
+			if err := Validate(u, "ollama"); err != nil {
+				t.Errorf("Validate(%q, ollama) = %v, want nil (bracketed IPv6 loopback must be allowed)", u, err)
+			}
+		})
+	}
+}
+
+func TestValidate_Ollama_BracketedIPv6NonLoopback_Rejected(t *testing.T) {
+	nonLoopbackIPv6URLs := []string{
+		"http://[2001:db8::1]:11434", // documentation range, globally routable
+		"http://[fe80::1]:11434",     // link-local
+		"http://[fc00::1]:11434",     // ULA (private but not loopback)
+		"http://[2600::1]:11434",     // public unicast
+	}
+	for _, u := range nonLoopbackIPv6URLs {
+		t.Run(u, func(t *testing.T) {
+			if err := Validate(u, "ollama"); err == nil {
+				t.Errorf("Validate(%q, ollama) = nil, want error (non-loopback IPv6 must be rejected)", u)
+			}
+		})
+	}
+}
+
+// IPv4-mapped IPv6 loopback ([::ffff:127.0.0.1]) IS accepted as loopback:
+// net.ParseIP normalises IPv4-mapped IPv6 to the embedded IPv4 address
+// (127.0.0.1), and net.IP.IsLoopback() returns true for it. The packet
+// would also actually route to 127.0.0.1, so this matches reality.
+// Pins current behavior — flipping it would require explicit handling in
+// isLoopback and would be a behavior change, not a bugfix.
+func TestValidate_Ollama_IPv4MappedIPv6Loopback_Allowed(t *testing.T) {
+	ipv4MappedURLs := []string{
+		"http://[::ffff:127.0.0.1]:11434",
+		"http://[::ffff:7f00:1]:11434", // same address in hex notation
+	}
+	for _, u := range ipv4MappedURLs {
+		t.Run(u, func(t *testing.T) {
+			if err := Validate(u, "ollama"); err != nil {
+				t.Errorf("Validate(%q, ollama) = %v, want nil (IPv4-mapped IPv6 loopback normalises to 127.0.0.1 and is accepted)", u, err)
 			}
 		})
 	}
