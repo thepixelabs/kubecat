@@ -65,7 +65,7 @@ interface NavbarProps {
   contextMenuIndex: number;
   showContextMenu: boolean;
   appVersion: string;
-  contextMenuContainerRef: React.RefObject<HTMLDivElement>;
+  contextMenuContainerRef: React.RefObject<HTMLDivElement | null>;
   onToggleContextMenu: () => void;
   onConnect: (ctx: string) => void;
   onDisconnect: () => void;

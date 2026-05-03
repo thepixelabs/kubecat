@@ -23,7 +23,7 @@ const makeProps = (overrides: Partial<React.ComponentProps<typeof Navbar>> = {})
   contextMenuIndex: -1,
   showContextMenu: false,
   appVersion: "0.1.0",
-  contextMenuContainerRef: createRef<HTMLDivElement>() as React.RefObject<HTMLDivElement>,
+  contextMenuContainerRef: createRef<HTMLDivElement>() as React.RefObject<HTMLDivElement | null>,
   onToggleContextMenu: vi.fn(),
   onConnect: vi.fn(),
   onDisconnect: vi.fn(),
