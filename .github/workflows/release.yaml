@@ -115,10 +115,23 @@ jobs:
             security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
             rm -f /tmp/certificate.p12
 
-            echo "Signing with Developer ID: $APPLE_SIGNING_IDENTITY"
+            # Extract the SHA-1 fingerprint of the Developer ID Application cert.
+            # Using the fingerprint (not the string name) avoids "ambiguous identity"
+            # errors when the keychain contains both the leaf cert and an intermediate
+            # CA cert that share the same display name.
+            SIGNING_HASH=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+              | grep "Developer ID Application" \
+              | head -1 \
+              | awk '{print $2}')
+            if [ -z "$SIGNING_HASH" ]; then
+              echo "ERROR: Could not find Developer ID Application cert in keychain" >&2
+              security find-identity -v "$KEYCHAIN_PATH" >&2
+              exit 1
+            fi
+            echo "Signing with fingerprint: $SIGNING_HASH (identity: $APPLE_SIGNING_IDENTITY)"
             codesign --force --deep --options=runtime \
               --entitlements build/darwin/entitlements.plist \
-              -s "$APPLE_SIGNING_IDENTITY" build/bin/kubecat.app
+              -s "$SIGNING_HASH" build/bin/kubecat.app
           else
             echo "APPLE_CERTIFICATE_P12 not set — falling back to ad-hoc signing (blocked on macOS 15+)"
             codesign --force --deep -s - build/bin/kubecat.app
