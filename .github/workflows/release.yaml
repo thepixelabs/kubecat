@@ -238,19 +238,27 @@ jobs:
           NEW_URL="https://github.com/thepixelabs/kubecat/releases/download/${TAG}/${DMG_NAME}"
           perl -pi -e "s|version \".*\"|version \"$VERSION\"|" kubecat.rb
           perl -pi -e "s|sha256 \".*\"|sha256 \"$SHA256\"|" kubecat.rb
-          perl -pi -e "s|url \".*\"|url \"$NEW_URL\"|" kubecat.rb
+          perl -pi -e 's|^  url ".*"|  url "'"$NEW_URL"'"|' kubecat.rb
 
           echo "Updated kubecat.rb content:"
           cat kubecat.rb
 
-          # Commit and Push
-          git add kubecat.rb
+          # Open a PR instead of pushing directly to main to avoid races
+          git checkout -b bump/kubecat-v${VERSION}
+          git add Casks/kubecat.rb
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update kubecat to $VERSION"
-            git push origin main
-            echo "Pushed changes to homebrew-tap"
+            git commit -m "chore: bump kubecat to v${VERSION}"
+            git push origin bump/kubecat-v${VERSION}
+            gh pr create \
+              --repo thepixelabs/homebrew-tap \
+              --base main \
+              --head bump/kubecat-v${VERSION} \
+              --title "chore: bump kubecat to v${VERSION}" \
+              --label "version-bump" \
+              --body "Automated bump: kubecat v${VERSION}"
+            echo "Opened PR for homebrew-tap bump"
           fi
 
       - name: Create Homebrew Release and Upload Artifacts
