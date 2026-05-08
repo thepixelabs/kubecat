@@ -235,10 +235,9 @@ jobs:
 
           # Update kubecat.rb — use perl for portable in-place editing (BSD sed requires '' suffix,
           # GNU sed does not; perl -pi -e is identical on both macOS and Linux runners)
-          NEW_URL="https://github.com/thepixelabs/kubecat/releases/download/${TAG}/${DMG_NAME}"
+          # Note: url stanza uses #{version} interpolation so only version + sha256 need updating.
           perl -pi -e "s|version \".*\"|version \"$VERSION\"|" kubecat.rb
           perl -pi -e "s|sha256 \".*\"|sha256 \"$SHA256\"|" kubecat.rb
-          perl -pi -e 's|^  url ".*"|  url "'"$NEW_URL"'"|' kubecat.rb
 
           echo "Updated kubecat.rb content:"
           cat kubecat.rb
