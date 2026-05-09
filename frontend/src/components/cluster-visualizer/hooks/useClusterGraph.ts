@@ -242,7 +242,7 @@ export function useClusterGraph({
       pods?.forEach((r: ResourceInfo) => {
         const node = transformResource(r, "Pod", allNodes);
 
-        let parentId: string | undefined = undefined;
+        let parentId: string | undefined;
 
         // A. Determine Physical Parent (Node)
         const nodeName = r.node;
