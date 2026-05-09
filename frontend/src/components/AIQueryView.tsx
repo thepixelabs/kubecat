@@ -498,7 +498,6 @@ export function AIQueryView({ onOpenSettings }: AIQueryViewProps = {}) {
     response: string
   ): { rawText: string; commands: CommandBlockLocal[] } => {
     const commands: CommandBlockLocal[] = [];
-    let rawText = response;
 
     // Extract code blocks with ```bash or ```sh
     const codeBlockRegex = /```(?:bash|sh|shell)?\n([\s\S]*?)```/g;
@@ -515,7 +514,7 @@ export function AIQueryView({ onOpenSettings }: AIQueryViewProps = {}) {
     }
 
     // Remove code blocks from text
-    rawText = response.replace(codeBlockRegex, "").trim();
+    const rawText = response.replace(codeBlockRegex, "").trim();
 
     // Look for inline commands like `kubectl ...`
     if (commands.length === 0) {
